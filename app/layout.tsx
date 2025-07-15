@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
+import { ServiceWorkerProvider } from "@/components/service-worker-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -16,7 +17,6 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Virtual Clinic",
   },
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -33,7 +33,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Virtual Clinic" />
       </head>
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <ServiceWorkerProvider />
+        {children}
+      </body>
     </html>
   )
 }

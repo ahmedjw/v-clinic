@@ -9,6 +9,7 @@ import { AuthGuard } from "@/components/auth-guard"
 import { PatientForm } from "@/components/patient-form"
 import { AppointmentForm } from "@/components/appointment-form"
 import { SyncStatus } from "@/components/sync-status"
+import { PWAInstaller } from "@/components/pwa-installer"
 import { getLocalDB, type Patient, type Appointment } from "@/lib/db"
 import { Calendar, Users, Clock, Plus, CheckCircle, XCircle } from "lucide-react"
 
@@ -296,6 +297,8 @@ export default function HomePage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <PWAInstaller />
     </AuthGuard>
   )
 }
