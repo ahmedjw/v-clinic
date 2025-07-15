@@ -4,34 +4,48 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Wifi, WifiOff, RefreshCw } from "lucide-react"
-import { syncService } from "@/lib/sync"
+import { getSyncService } from "@/lib/sync"
 
 export function SyncStatus() {
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [isOnline, setIsOnline] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
+    setMounted(true)
 
-    window.addEventListener("online", handleOnline)
-    window.addEventListener("offline", handleOffline)
+    if (typeof window !== "undefined") {
+      setIsOnline(navigator.onLine)
 
-    return () => {
-      window.removeEventListener("online", handleOnline)
-      window.removeEventListener("offline", handleOffline)
+      const handleOnline = () => setIsOnline(true)
+      const handleOffline = () => setIsOnline(false)
+
+      window.addEventListener("online", handleOnline)
+      window.addEventListener("offline", handleOffline)
+
+      return () => {
+        window.removeEventListener("online", handleOnline)
+        window.removeEventListener("offline", handleOffline)
+      }
     }
   }, [])
 
   const handleSync = async () => {
+    if (typeof window === "undefined") return
+
     setSyncing(true)
     try {
+      const syncService = getSyncService()
       await syncService.forcSync()
     } catch (error) {
       console.error("Manual sync failed:", error)
     } finally {
       setSyncing(false)
     }
+  }
+
+  if (!mounted) {
+    return null
   }
 
   return (

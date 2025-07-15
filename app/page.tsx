@@ -9,7 +9,7 @@ import { AuthGuard } from "@/components/auth-guard"
 import { PatientForm } from "@/components/patient-form"
 import { AppointmentForm } from "@/components/appointment-form"
 import { SyncStatus } from "@/components/sync-status"
-import { localDB, type Patient, type Appointment } from "@/lib/db"
+import { getLocalDB, type Patient, type Appointment } from "@/lib/db"
 import { Calendar, Users, Clock, Plus, CheckCircle, XCircle } from "lucide-react"
 
 export default function HomePage() {
@@ -18,13 +18,18 @@ export default function HomePage() {
   const [showPatientForm, setShowPatientForm] = useState(false)
   const [showAppointmentForm, setShowAppointmentForm] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    initializeApp()
+    setMounted(true)
+    if (typeof window !== "undefined") {
+      initializeApp()
+    }
   }, [])
 
   const initializeApp = async () => {
     try {
+      const localDB = getLocalDB()
       await localDB.init()
       await loadData()
     } catch (error) {
@@ -35,7 +40,10 @@ export default function HomePage() {
   }
 
   const loadData = async () => {
+    if (typeof window === "undefined") return
+
     try {
+      const localDB = getLocalDB()
       const [patientsData, appointmentsData] = await Promise.all([localDB.getPatients(), localDB.getAppointments()])
       setPatients(patientsData)
       setAppointments(appointmentsData)
@@ -45,7 +53,10 @@ export default function HomePage() {
   }
 
   const handleAddPatient = async (patientData: Omit<Patient, "id" | "createdAt" | "updatedAt" | "synced">) => {
+    if (typeof window === "undefined") return
+
     try {
+      const localDB = getLocalDB()
       await localDB.addPatient(patientData)
       await loadData()
       setShowPatientForm(false)
@@ -57,7 +68,10 @@ export default function HomePage() {
   const handleAddAppointment = async (
     appointmentData: Omit<Appointment, "id" | "createdAt" | "updatedAt" | "synced">,
   ) => {
+    if (typeof window === "undefined") return
+
     try {
+      const localDB = getLocalDB()
       await localDB.addAppointment(appointmentData)
       await loadData()
       setShowAppointmentForm(false)
@@ -67,7 +81,10 @@ export default function HomePage() {
   }
 
   const handleUpdateAppointmentStatus = async (id: string, status: Appointment["status"]) => {
+    if (typeof window === "undefined") return
+
     try {
+      const localDB = getLocalDB()
       await localDB.updateAppointmentStatus(id, status)
       await loadData()
     } catch (error) {
@@ -101,7 +118,14 @@ export default function HomePage() {
     }
   }
 
-  const todayAppointments = appointments.filter((apt) => apt.date === new Date().toISOString().split("T")[0])
+  // Don't render until mounted to avoid hydration issues
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -110,6 +134,8 @@ export default function HomePage() {
       </div>
     )
   }
+
+  const todayAppointments = appointments.filter((apt) => apt.date === new Date().toISOString().split("T")[0])
 
   return (
     <AuthGuard>
@@ -135,7 +161,7 @@ export default function HomePage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Today's Appointments</CardTitle>
+              <CardTitle className="text-sm font-medium">Today&apos;s Appointments</CardTitle>
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
