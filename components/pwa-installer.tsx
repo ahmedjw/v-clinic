@@ -3,32 +3,21 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
 
 export function PWAInstaller() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isAppInstalled, setIsAppInstalled] = useState(false)
-  const { toast } = useToast()
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e)
-      toast({
-        title: "Install App",
-        description: "Click the button below to install this app to your device!",
-        duration: 5000,
-      })
+
     }
 
     const handleAppInstalled = () => {
       setIsAppInstalled(true)
       setDeferredPrompt(null)
-      toast({
-        title: "App Installed!",
-        description: "The Virtual Clinic app has been successfully installed.",
-        duration: 5000,
-      })
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
@@ -43,7 +32,7 @@ export function PWAInstaller() {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
       window.removeEventListener("appinstalled", handleAppInstalled)
     }
-  }, [toast])
+  }, [])
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {

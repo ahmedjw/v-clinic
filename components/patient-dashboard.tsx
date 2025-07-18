@@ -10,7 +10,6 @@ import { LogOut, User2 } from "lucide-react"
 import { AppointmentForm } from "@/components/appointment-form"
 import { DoctorCard } from "@/components/doctor-card"
 import { ShareAppointmentModal } from "@/components/share-appointment-modal"
-import { useToast } from "@/components/ui/use-toast"
 import { PatientProfileModal } from "./patient-profile-modal"
 import { MockChat } from "./mock-chat"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -30,7 +29,6 @@ export function PatientDashboard({ patient }: PatientDashboardProps) {
   const [selectedDoctorToShare, setSelectedDoctorToShare] = useState<Doctor | null>(null)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false)
-  const { toast } = useToast()
   const router = useRouter()
 
   useEffect(() => {
@@ -96,10 +94,6 @@ export function PatientDashboard({ patient }: PatientDashboardProps) {
   const handleUserSettingsSave = (updatedUser: Patient | Doctor) => {
     if (updatedUser.role === "patient") {
       setIsUserSettingsOpen(false)
-      toast({
-        title: "Profile Updated",
-        description: "Your patient profile has been successfully updated.",
-      })
     } else {
       // Optional: Handle or ignore doctor case
       console.warn("Received doctor data, but this handler is for patients only.")

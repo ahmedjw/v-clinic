@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { PatientForm } from "./patient-form"
 import type { Doctor, Patient } from "@/lib/db"
-import { useToast } from "@/components/ui/use-toast"
 import { DoctorForm } from "./doctor-form"
 
 interface RegisterFormProps {
@@ -18,7 +17,6 @@ interface RegisterFormProps {
 export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps) {
   const [activeTab, setActiveTab] = useState("patient")
   const [error, setError] = useState<string | null>(null)
-  const { toast } = useToast()
 
   const handleRegistrationSuccess = (user: Patient | Doctor) => {
     onRegister(user)

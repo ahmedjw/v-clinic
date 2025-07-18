@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { AuthClientService } from "@/lib/auth-client"
 import type { Appointment, Doctor } from "@/lib/db"
-import { useToast } from "@/components/ui/use-toast"
 
 interface AppointmentFormProps {
   patientId: string
@@ -24,7 +23,6 @@ export function AppointmentForm({ patientId, onAppointmentCreated }: Appointment
   const [time, setTime] = useState("")
   const [reason, setReason] = useState("")
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
 
   useEffect(() => {
     const fetchDoctors = async () => {
@@ -42,22 +40,14 @@ export function AppointmentForm({ patientId, onAppointmentCreated }: Appointment
     setLoading(true)
 
     if (!selectedDoctorId || !date || !time || !reason) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      })
+
       setLoading(false)
       return
     }
 
     const selectedDoctor = doctors.find((doc) => doc.id === selectedDoctorId)
     if (!selectedDoctor) {
-      toast({
-        title: "Error",
-        description: "Selected doctor not found.",
-        variant: "destructive",
-      })
+
       setLoading(false)
       return
     }
@@ -65,11 +55,7 @@ export function AppointmentForm({ patientId, onAppointmentCreated }: Appointment
     try {
       const currentUser = await AuthClientService.getCurrentUser()
       if (!currentUser || currentUser.role !== "patient") {
-        toast({
-          title: "Authentication Error",
-          description: "You must be logged in as a patient to request an appointment.",
-          variant: "destructive",
-        })
+
         setLoading(false)
         return
       }
@@ -91,10 +77,6 @@ export function AppointmentForm({ patientId, onAppointmentCreated }: Appointment
 
       const createdAppointment = await AuthClientService.addAppointment(newAppointment)
       onAppointmentCreated(createdAppointment)
-      toast({
-        title: "Appointment Requested!",
-        description: "Your appointment request has been sent.",
-      })
       // Clear form
       setDate("")
       setTime("")
@@ -102,11 +84,6 @@ export function AppointmentForm({ patientId, onAppointmentCreated }: Appointment
       setSelectedDoctorId(doctors[0]?.id || "")
     } catch (error) {
       console.error("Failed to request appointment:", error)
-      toast({
-        title: "Error",
-        description: "Failed to request appointment. Please try again.",
-        variant: "destructive",
-      })
     } finally {
       setLoading(false)
     }

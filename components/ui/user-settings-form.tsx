@@ -19,7 +19,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import type { Patient, Doctor } from "@/lib/db"
-import { useToast } from "@/components/ui/use-toast"
 import { AuthClientService } from "@/lib/auth-client"
 import { Spinner } from "./spinner"
 
@@ -32,7 +31,6 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
   const [formData, setFormData] = useState<Patient | Doctor>(user)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
 
   const handleChange = (field: any, value: string | string[] | number | undefined) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -66,18 +64,11 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
       }
 
       onSave(updatedUser)
-      toast({
-        title: "Settings Saved",
-        description: "Your profile settings have been updated.",
-      })
+
     } catch (err) {
       console.error("Failed to save settings:", err)
       setError("Failed to save settings. Please try again.")
-      toast({
-        title: "Error",
-        description: "Failed to save settings.",
-        variant: "destructive",
-      })
+
     } finally {
       setLoading(false)
     }

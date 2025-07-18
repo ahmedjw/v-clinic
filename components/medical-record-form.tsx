@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { AuthClientService } from "@/lib/auth-client"
 import type { MedicalRecord, Patient } from "@/lib/db"
-import { useToast } from "@/components/ui/use-toast"
 
 interface MedicalRecordFormProps {
   doctorId: string
@@ -25,7 +24,6 @@ export function MedicalRecordForm({ doctorId, onSave, onCancel, patients }: Medi
   const [treatment, setTreatment] = useState("")
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
 
   useEffect(() => {
     if (patients.length > 0 && !selectedPatientId) {
@@ -38,22 +36,13 @@ export function MedicalRecordForm({ doctorId, onSave, onCancel, patients }: Medi
     setLoading(true)
 
     if (!selectedPatientId || !diagnosis || !treatment) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields (Patient, Diagnosis, Treatment).",
-        variant: "destructive",
-      })
+
       setLoading(false)
       return
     }
 
     const patient = patients.find((p) => p.id === selectedPatientId)
     if (!patient) {
-      toast({
-        title: "Error",
-        description: "Selected patient not found.",
-        variant: "destructive",
-      })
       setLoading(false)
       return
     }
@@ -74,17 +63,8 @@ export function MedicalRecordForm({ doctorId, onSave, onCancel, patients }: Medi
 
       const createdRecord = await AuthClientService.addMedicalRecord(newRecord)
       onSave(createdRecord)
-      toast({
-        title: "Medical Record Added!",
-        description: "The medical record has been successfully saved.",
-      })
     } catch (error) {
       console.error("Failed to add medical record:", error)
-      toast({
-        title: "Error",
-        description: "Failed to add medical record. Please try again.",
-        variant: "destructive",
-      })
     } finally {
       setLoading(false)
     }

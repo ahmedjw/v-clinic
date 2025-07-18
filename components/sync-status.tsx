@@ -3,13 +3,11 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, CloudOff, Cloud } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
 import { AuthClientService } from "@/lib/auth-client"
 
 export function SyncStatus() {
   const [isOnline, setIsOnline] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
-  const { toast } = useToast()
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true)
@@ -31,17 +29,9 @@ export function SyncStatus() {
     setIsSyncing(true)
     try {
       await AuthClientService.syncData()
-      toast({
-        title: "Sync Complete",
-        description: "Your data has been synchronized.",
-      })
+
     } catch (error) {
       console.error("Manual sync failed:", error)
-      toast({
-        title: "Sync Failed",
-        description: "Could not synchronize data. Please try again.",
-        variant: "destructive",
-      })
     } finally {
       setIsSyncing(false)
     }

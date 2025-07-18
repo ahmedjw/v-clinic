@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { AuthClientService } from "@/lib/auth-client"
 import type { Patient } from "@/lib/db"
-import { useToast } from "@/components/ui/use-toast"
 import { Spinner } from "./ui/spinner"
 
 interface PatientFormProps {
@@ -28,7 +27,6 @@ export function PatientForm({ onRegister, onCancel }: PatientFormProps) {
   const [address, setAddress] = useState("")
   const [medicalHistory, setMedicalHistory] = useState("")
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,17 +46,8 @@ export function PatientForm({ onRegister, onCancel }: PatientFormProps) {
       }
       const registeredPatient = await AuthClientService.register(newPatient)
       onRegister(registeredPatient as Patient)
-      toast({
-        title: "Registration Successful!",
-        description: "Your patient account has been created.",
-      })
     } catch (error: any) {
       console.error("Patient registration failed:", error)
-      toast({
-        title: "Registration Failed",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      })
     } finally {
       setLoading(false)
     }

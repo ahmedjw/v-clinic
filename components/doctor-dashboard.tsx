@@ -12,7 +12,6 @@ import { PlusCircle, Settings, LogOut, Share2 } from "lucide-react"
 import { AppointmentRequestForm } from "@/components/appointment-request-form"
 import { MedicalRecordForm } from "@/components/medical-record-form"
 import { ShareAppointmentModal } from "@/components/share-appointment-modal"
-import { useToast } from "@/components/ui/use-toast"
 import { DoctorProfileModal } from "./doctor-profile-modal"
 import { MockChat } from "./mock-chat"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -33,7 +32,6 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false)
-  const { toast } = useToast()
   const router = useRouter()
 
   useEffect(() => {
@@ -98,17 +96,9 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
     try {
       const updatedAppointment = await AuthClientService.updateAppointmentStatus(appointmentId, status as any)
       setAppointments((prev) => prev.map((app) => (app.id === updatedAppointment.id ? updatedAppointment : app)))
-      toast({
-        title: "Appointment Updated",
-        description: `Appointment status changed to ${status}.`,
-      })
+
     } catch (error) {
       console.error("Failed to update appointment status:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update appointment status. Please try again.",
-        variant: "destructive",
-      })
     }
   }
 
@@ -121,10 +111,6 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
     // Update the local doctor state if needed, or rely on re-fetch if complex
     // For simplicity, we'll just close the modal and assume the data is updated in AuthClientService
     setIsUserSettingsOpen(false)
-    toast({
-      title: "Profile Updated",
-      description: "Your doctor profile has been successfully updated.",
-    })
   }
 
   return (

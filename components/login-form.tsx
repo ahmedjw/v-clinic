@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AuthClientService } from "@/lib/auth-client"
-import { useToast } from "@/components/ui/use-toast"
 import { Spinner } from "./ui/spinner"
 
 interface LoginFormProps {
@@ -22,7 +21,6 @@ export function LoginForm({ onLogin, onSwitchToRegister }: LoginFormProps) {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,17 +30,10 @@ export function LoginForm({ onLogin, onSwitchToRegister }: LoginFormProps) {
     try {
       await AuthClientService.login(email, password)
       onLogin()
-      toast({
-        title: "Login Successful!",
-        description: "You have been successfully logged in.",
-      })
+
     } catch (err: any) {
       setError(err.message || "Login failed. Please check your credentials.")
-      toast({
-        title: "Login Failed",
-        description: err.message || "Please check your credentials.",
-        variant: "destructive",
-      })
+
     } finally {
       setLoading(false)
     }

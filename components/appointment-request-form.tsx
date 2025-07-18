@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { AuthClientService } from "@/lib/auth-client"
 import type { Appointment, Doctor, Patient } from "@/lib/db"
-import { useToast } from "@/components/ui/use-toast"
 
 interface AppointmentRequestFormProps {
   patientId?: string // Optional if doctor is creating for a specific patient
@@ -35,7 +34,6 @@ export function AppointmentRequestForm({
   const [time, setTime] = useState("")
   const [reason, setReason] = useState("")
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
 
   useEffect(() => {
     if (doctors.length > 0 && !selectedDoctorId) {
@@ -51,11 +49,6 @@ export function AppointmentRequestForm({
     setLoading(true)
 
     if (!selectedPatientId || !selectedDoctorId || !date || !time || !reason) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      })
       setLoading(false)
       return
     }
@@ -68,11 +61,6 @@ export function AppointmentRequestForm({
       ((await AuthClientService.getUserById(selectedDoctorId)) as Doctor)
 
     if (!patient || !doctor) {
-      toast({
-        title: "Error",
-        description: "Patient or Doctor not found.",
-        variant: "destructive",
-      })
       setLoading(false)
       return
     }
@@ -95,17 +83,10 @@ export function AppointmentRequestForm({
 
       const createdAppointment = await AuthClientService.addAppointment(newAppointment)
       onSave(createdAppointment)
-      toast({
-        title: "Appointment Created!",
-        description: "The appointment has been successfully scheduled.",
-      })
+
     } catch (error) {
       console.error("Failed to create appointment:", error)
-      toast({
-        title: "Error",
-        description: "Failed to create appointment. Please try again.",
-        variant: "destructive",
-      })
+
     } finally {
       setLoading(false)
     }

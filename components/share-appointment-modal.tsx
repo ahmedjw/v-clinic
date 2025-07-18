@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Check, Copy } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
 import type { Doctor } from "@/lib/db"
 
 interface ShareAppointmentModalProps {
@@ -17,7 +16,6 @@ interface ShareAppointmentModalProps {
 export function ShareAppointmentModal({ isOpen, onClose, doctor }: ShareAppointmentModalProps) {
   const [shareLink, setShareLink] = useState("")
   const [copied, setCopied] = useState(false)
-  const { toast } = useToast()
 
   useEffect(() => {
     if (isOpen && doctor) {
@@ -31,10 +29,6 @@ export function ShareAppointmentModal({ isOpen, onClose, doctor }: ShareAppointm
   const handleCopy = () => {
     navigator.clipboard.writeText(shareLink)
     setCopied(true)
-    toast({
-      title: "Copied!",
-      description: "Doctor profile share link copied to clipboard.",
-    })
     setTimeout(() => setCopied(false), 2000) // Reset icon after 2 seconds
   }
 

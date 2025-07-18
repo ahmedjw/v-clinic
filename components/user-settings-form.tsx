@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { Doctor, Patient } from "@/lib/db"
-import { useToast } from "@/components/ui/use-toast"
 import { AuthClientService } from "@/lib/auth-client"
 
 interface UserSettingsFormProps {
@@ -28,7 +27,6 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
   const [gender, setGender] = useState((user as Patient).gender || "")
   const [medicalHistory, setMedicalHistory] = useState((user as Patient).medicalHistory || "")
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
 
   const isDoctor = user.role === "doctor"
 
@@ -62,17 +60,10 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
         await AuthClientService.updatePatientProfile(updatedUser)
       }
       onSave(updatedUser)
-      toast({
-        title: "Profile Updated!",
-        description: "Your profile has been successfully updated.",
-      })
+
     } catch (error) {
       console.error("Failed to update profile:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update profile. Please try again.",
-        variant: "destructive",
-      })
+
     } finally {
       setLoading(false)
     }
