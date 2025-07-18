@@ -1,6 +1,8 @@
+import path from "path-browserify";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export", // Enables static HTML export for PWA
+  output: "export",
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -8,14 +10,13 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    unoptimized: true, // Required for static export with Next/Image
+    unoptimized: true,
   },
   webpack: (config, { isServer }) => {
-    // Polyfill 'path' module for client-side if needed by any dependency
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
-        path: require.resolve("path-browserify"),
+        path: path,
       };
     }
     return config;
