@@ -7,10 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Stethoscope } from "lucide-react"
+import { AuthClientService } from "@/lib/auth-client"
+import type { User } from "@/lib/db"
 
 interface LoginFormProps {
-  onLogin: (email: string, password: string) => Promise<void>
+  onLogin: (user: User) => void
   onSwitchToRegister: () => void
 }
 
@@ -19,14 +20,15 @@ export function LoginForm({ onLogin, onSwitchToRegister }: LoginFormProps) {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const authService = new AuthClientService()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
-
     try {
-      await onLogin(email, password)
+      const user = await authService.login(email, password)
+      onLogin(user)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed")
     } finally {
@@ -36,43 +38,31 @@ export function LoginForm({ onLogin, onSwitchToRegister }: LoginFormProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-4 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          <div className="flex justify-center">
-            <div className="bg-blue-100 p-3 rounded-full">
-              <Stethoscope className="h-8 w-8 text-blue-600" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">Virtual Clinic</CardTitle>
-          <CardDescription className="text-gray-600">Sign in to access your account</CardDescription>
+          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+          <CardDescription>Sign in to your Virtual Clinic account</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-gray-700">
-                Email
-              </Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
+                placeholder="m@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="w-full"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                Password
-              </Label>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                className="w-full"
                 required
               />
             </div>
@@ -82,17 +72,12 @@ export function LoginForm({ onLogin, onSwitchToRegister }: LoginFormProps) {
               </Alert>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Signing In..." : "Sign In"}
             </Button>
           </form>
-
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={onSwitchToRegister}
-              className="text-sm text-blue-600 hover:text-blue-800 underline"
-            >
-              Don't have an account? Create one
+          <div className="mt-4 text-center">
+            <button type="button" onClick={onSwitchToRegister} className="text-sm text-blue-600 hover:text-blue-800">
+              Don't have an account? Register
             </button>
           </div>
         </CardContent>

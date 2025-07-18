@@ -11,9 +11,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { User, Stethoscope } from "lucide-react"
 import { AuthClientService } from "@/lib/auth-client" // Ensure AuthClientService is imported
+import type { User as UserType } from "@/lib/db"
 
 interface RegisterFormProps {
-  onRegister: (user: any) => void
+  onRegister: (user: UserType) => void
   onSwitchToLogin: () => void
 }
 
@@ -31,9 +32,7 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-
-  // Create an instance of AuthClientService
-  const authService = new AuthClientService()
+  const authService = new AuthClientService() // Create an instance
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,7 +44,6 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
       setLoading(false)
       return
     }
-
     if (formData.password.length < 6) {
       setError("Password must be at least 6 characters")
       setLoading(false)
@@ -53,8 +51,8 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
     }
 
     try {
-      // Call the register method on the instance
       const user = await authService.register({
+        // Call on the instance
         ...formData,
         role: userType,
       })

@@ -1,8 +1,26 @@
-export interface Patient {
+import { openDB, type IDBPDatabase, type DBSchema } from "idb";
+import { v4 as uuidv4 } from "uuid";
+
+// Define common base properties for all data types
+interface BaseData {
   id: string;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean; // Indicates if the record has been synced with a backend
+}
+
+// User types
+export interface User extends BaseData {
   name: string;
   email: string;
+  password?: string; // Password should ideally not be stored client-side in real apps
   phone: string;
+  role: "patient" | "doctor";
+  dateOfBirth?: string;
+}
+
+export interface Patient extends User {
+  role: "patient";
   dateOfBirth: string;
   gender: "male" | "female" | "other";
   address: string;
@@ -15,470 +33,325 @@ export interface Patient {
   allergies: string[];
   currentMedications: string[];
   bloodType?: string;
-  height?: number; // in cm
-  weight?: number; // in kg
-  assignedDoctorIds: string[]; // NEW: Array of doctor IDs assigned to this patient
-  createdAt: string;
-  updatedAt: string;
-  synced: boolean; // Keep synced property for potential future server integration
+  height?: number;
+  weight?: number;
+  assignedDoctorIds: string[]; // IDs of doctors assigned to this patient
 }
 
-export interface Appointment {
-  id: string;
+export interface Doctor extends User {
+  role: "doctor";
+  specialization: string;
+  licenseNumber: string;
+  education?: string[];
+  experience?: string[];
+}
+
+// Other data types
+export interface Appointment extends BaseData {
   patientId: string;
-  patientName: string;
-  doctorId: string; // Ensure doctorId is always present
-  date: string;
-  time: string;
-  type: "consultation" | "follow-up" | "emergency";
-  status: "scheduled" | "completed" | "cancelled" | "requested"; // ADDED 'requested' status
+  patientName: string; // Denormalized for easier display
+  doctorId: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  type: "consultation" | "follow-up" | "checkup" | "emergency" | string;
+  status: "scheduled" | "completed" | "cancelled" | "pending" | string;
   notes: string;
-  createdAt: string;
-  updatedAt: string;
-  synced: boolean;
 }
 
-export interface MedicalRecord {
-  id: string;
+export interface MedicalRecord extends BaseData {
   patientId: string;
-  doctorId: string; // Ensure doctorId is always present
-  date: string;
+  patientName: string; // Denormalized for easier display
+  doctorId: string;
+  date: string; // YYYY-MM-DD
   diagnosis: string;
-  symptoms: string[];
   treatment: string;
-  prescription: {
-    medication: string;
-    dosage: string;
-    frequency: string;
-    duration: string;
-  }[];
-  vitals: {
-    bloodPressure?: string;
-    heartRate?: number;
-    temperature?: number;
-    weight?: number;
-    height?: number;
+  notes?: string;
+}
+
+// Define the database schema
+interface VirtualClinicDB extends DBSchema {
+  users: {
+    key: string;
+    value: User;
+    indexes: { "by-email": string; "by-role": string };
   };
-  notes: string;
-  followUpDate?: string;
-  createdAt: string;
-  updatedAt: string;
-  synced: boolean;
+  patients: {
+    key: string;
+    value: Patient;
+    indexes: { "by-email": string; "by-name": string };
+  };
+  doctors: {
+    key: string;
+    value: Doctor;
+    indexes: { "by-email": string; "by-specialization": string };
+  };
+  appointments: {
+    key: string;
+    value: Appointment;
+    indexes: { "by-patient": string; "by-doctor": string; "by-date": string };
+  };
+  medicalRecords: {
+    key: string;
+    value: MedicalRecord;
+    indexes: { "by-patient": string; "by-doctor": string; "by-date": string };
+  };
 }
 
-// User interface for IndexedDB, matching AuthClientService's User
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: "doctor" | "patient";
-  phone?: string;
-  specialization?: string; // for doctors
-  licenseNumber?: string; // for doctors
-  patientId?: string; // for patients - links to Patient record
-  createdAt: string;
-}
+const DB_NAME = "virtual-clinic-db";
+const DB_VERSION = 1;
 
-class LocalDB {
-  private dbName = "VirtualClinicDB";
-  private version = 1;
-  private db: IDBDatabase | null = null;
+let dbPromise: Promise<IDBPDatabase<VirtualClinicDB>> | null = null;
 
-  async init(): Promise<void> {
-    // Check if we're in a browser environment
-    if (typeof window === "undefined" || !window.indexedDB) {
-      throw new Error("IndexedDB is not available");
-    }
-
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, this.version);
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve();
-      };
-
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-
-        // Patients store
-        if (!db.objectStoreNames.contains("patients")) {
-          const patientsStore = db.createObjectStore("patients", {
-            keyPath: "id",
-          });
-          patientsStore.createIndex("email", "email", { unique: true });
-          patientsStore.createIndex("synced", "synced");
-          patientsStore.createIndex("assignedDoctorIds", "assignedDoctorIds", {
-            multiEntry: true,
-          }); // NEW INDEX
-        }
-
-        // Appointments store
-        if (!db.objectStoreNames.contains("appointments")) {
-          const appointmentsStore = db.createObjectStore("appointments", {
-            keyPath: "id",
-          });
-          appointmentsStore.createIndex("patientId", "patientId");
-          appointmentsStore.createIndex("doctorId", "doctorId"); // NEW INDEX
-          appointmentsStore.createIndex("date", "date");
-          appointmentsStore.createIndex("synced", "synced");
-        }
-
-        // Users store (for current logged-in user session)
-        if (!db.objectStoreNames.contains("users")) {
-          db.createObjectStore("users", { keyPath: "id" });
-        }
-
-        // Sync queue store (no longer used for server sync, but can be kept for local "pending" actions)
-        if (!db.objectStoreNames.contains("syncQueue")) {
-          const syncStore = db.createObjectStore("syncQueue", {
-            keyPath: "id",
-            autoIncrement: true,
-          });
-          syncStore.createIndex("timestamp", "timestamp");
-        }
-
-        // Medical Records store
-        if (!db.objectStoreNames.contains("medicalRecords")) {
-          const recordsStore = db.createObjectStore("medicalRecords", {
-            keyPath: "id",
-          });
-          recordsStore.createIndex("patientId", "patientId");
-          recordsStore.createIndex("doctorId", "doctorId"); // NEW INDEX
-          recordsStore.createIndex("date", "date");
-          recordsStore.createIndex("synced", "synced");
-        }
-      };
-    });
+function initDB() {
+  if (dbPromise) {
+    return dbPromise;
   }
 
-  async addPatient(
-    patient: Omit<Patient, "createdAt" | "updatedAt" | "synced"> & {
-      id?: string;
+  dbPromise = openDB<VirtualClinicDB>(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      // Users store (for both patients and doctors)
+      const userStore = db.createObjectStore("users", { keyPath: "id" });
+      userStore.createIndex("by-email", "email", { unique: true });
+      userStore.createIndex("by-role", "role");
+
+      // Patients store
+      const patientStore = db.createObjectStore("patients", { keyPath: "id" });
+      patientStore.createIndex("by-email", "email", { unique: true });
+      patientStore.createIndex("by-name", "name");
+
+      // Doctors store
+      const doctorStore = db.createObjectStore("doctors", { keyPath: "id" });
+      doctorStore.createIndex("by-email", "email", { unique: true });
+      doctorStore.createIndex("by-specialization", "specialization");
+
+      // Appointments store
+      const appointmentStore = db.createObjectStore("appointments", {
+        keyPath: "id",
+      });
+      appointmentStore.createIndex("by-patient", "patientId");
+      appointmentStore.createIndex("by-doctor", "doctorId");
+      appointmentStore.createIndex("by-date", "date");
+
+      // Medical Records store
+      const medicalRecordStore = db.createObjectStore("medicalRecords", {
+        keyPath: "id",
+      });
+      medicalRecordStore.createIndex("by-patient", "patientId");
+      medicalRecordStore.createIndex("by-doctor", "doctorId");
+      medicalRecordStore.createIndex("by-date", "date");
+    },
+  });
+  return dbPromise;
+}
+
+export class LocalDB {
+  private db: IDBPDatabase<VirtualClinicDB> | null = null;
+
+  constructor(database: IDBPDatabase<VirtualClinicDB>) {
+    this.db = database;
+  }
+
+  private async getDb(): Promise<IDBPDatabase<VirtualClinicDB>> {
+    if (!this.db) {
+      this.db = await initDB();
     }
+    return this.db;
+  }
+
+  // Generic add function
+  private async add<T extends BaseData>(
+    storeName: keyof VirtualClinicDB,
+    data: Omit<T, "id" | "createdAt" | "updatedAt" | "synced">
+  ): Promise<T> {
+    const db = await this.getDb();
+    const now = new Date().toISOString();
+    const record: T = {
+      id: uuidv4(),
+      createdAt: now,
+      updatedAt: now,
+      synced: false,
+      ...data,
+    } as T; // Type assertion needed due to Omit usage
+    await db.add(storeName, record);
+    return record;
+  }
+
+  // Generic update function
+  private async update<T extends BaseData>(
+    storeName: keyof VirtualClinicDB,
+    data: T
+  ): Promise<T> {
+    const db = await this.getDb();
+    const now = new Date().toISOString();
+    const updatedRecord: T = { ...data, updatedAt: now, synced: false };
+    await db.put(storeName, updatedRecord);
+    return updatedRecord;
+  }
+
+  // Generic delete function
+  private async delete(
+    storeName: keyof VirtualClinicDB,
+    id: string
+  ): Promise<void> {
+    const db = await this.getDb();
+    await db.delete(storeName, id);
+  }
+
+  // Generic get all function
+  private async getAll<T extends BaseData>(
+    storeName: keyof VirtualClinicDB
+  ): Promise<T[]> {
+    const db = await this.getDb();
+    return db.getAll(storeName);
+  }
+
+  // Generic get by ID function
+  private async getById<T extends BaseData>(
+    storeName: keyof VirtualClinicDB,
+    id: string
+  ): Promise<T | undefined> {
+    const db = await this.getDb();
+    return db.get(storeName, id);
+  }
+
+  // User operations (for both patients and doctors)
+  async addUser(
+    user: Omit<User, "id" | "createdAt" | "updatedAt" | "synced">
+  ): Promise<User> {
+    return this.add("users", user);
+  }
+
+  async updateUser(user: User): Promise<User> {
+    return this.update("users", user);
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    return this.getById("users", id);
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return this.getAll("users");
+  }
+
+  // Patient operations
+  async addPatient(
+    patient: Omit<Patient, "id" | "createdAt" | "updatedAt" | "synced">
   ): Promise<Patient> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const newPatient: Patient = {
-      ...patient,
-      id: patient.id || crypto.randomUUID(), // Allow passing ID for mock patient creation
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      synced: true, // Always true for client-only mode
-    };
-
-    const transaction = this.db.transaction(["patients"], "readwrite");
-    const patientsStore = transaction.objectStore("patients");
-
-    await patientsStore.add(newPatient);
+    const newPatient = await this.add("patients", patient);
+    await this.addUser(newPatient); // Also add to generic users store
     return newPatient;
   }
 
-  async getPatients(doctorId?: string): Promise<Patient[]> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["patients"], "readonly");
-    const store = transaction.objectStore("patients");
-
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      request.onsuccess = () => {
-        const patients = request.result;
-        if (doctorId) {
-          // Filter patients assigned to this doctor
-          resolve(
-            patients.filter((p) => p.assignedDoctorIds.includes(doctorId))
-          );
-        } else {
-          resolve(patients);
-        }
-      };
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async getPatientById(patientId: string): Promise<Patient | null> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["patients"], "readonly");
-    const store = transaction.objectStore("patients");
-
-    return new Promise((resolve, reject) => {
-      const request = store.get(patientId);
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
   async updatePatient(patient: Patient): Promise<Patient> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["patients"], "readwrite");
-    const store = transaction.objectStore("patients");
-
-    const updatedPatient = {
-      ...patient,
-      updatedAt: new Date().toISOString(),
-      synced: true,
-    };
-
-    await store.put(updatedPatient);
+    const updatedPatient = await this.update("patients", patient);
+    await this.updateUser(updatedPatient); // Also update in generic users store
     return updatedPatient;
   }
 
+  async getPatientById(id: string): Promise<Patient | undefined> {
+    return this.getById("patients", id);
+  }
+
+  async getAllPatients(): Promise<Patient[]> {
+    return this.getAll("patients");
+  }
+
+  // Doctor operations
+  async addDoctor(
+    doctor: Omit<Doctor, "id" | "createdAt" | "updatedAt" | "synced">
+  ): Promise<Doctor> {
+    const newDoctor = await this.add("doctors", doctor);
+    await this.addUser(newDoctor); // Also add to generic users store
+    return newDoctor;
+  }
+
+  async updateDoctor(doctor: Doctor): Promise<Doctor> {
+    const updatedDoctor = await this.update("doctors", doctor);
+    await this.updateUser(updatedDoctor); // Also update in generic users store
+    return updatedDoctor;
+  }
+
+  async getDoctorById(id: string): Promise<Doctor | undefined> {
+    return this.getById("doctors", id);
+  }
+
+  async getAllDoctors(): Promise<Doctor[]> {
+    return this.getAll("doctors");
+  }
+
+  // Appointment operations
   async addAppointment(
     appointment: Omit<Appointment, "id" | "createdAt" | "updatedAt" | "synced">
   ): Promise<Appointment> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const newAppointment: Appointment = {
-      ...appointment,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      synced: true, // Always true for client-only mode
-    };
-
-    const transaction = this.db.transaction(["appointments"], "readwrite");
-    const appointmentsStore = transaction.objectStore("appointments");
-
-    await appointmentsStore.add(newAppointment);
-    return newAppointment;
+    return this.add("appointments", appointment);
   }
 
-  async getAppointments(
-    patientId?: string,
-    doctorId?: string
-  ): Promise<Appointment[]> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["appointments"], "readonly");
-    const store = transaction.objectStore("appointments");
-
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      request.onsuccess = () => {
-        let appointments = request.result;
-        if (patientId) {
-          appointments = appointments.filter(
-            (apt) => apt.patientId === patientId
-          );
-        }
-        if (doctorId) {
-          appointments = appointments.filter(
-            (apt) => apt.doctorId === doctorId
-          );
-        }
-        resolve(appointments);
-      };
-      request.onerror = () => reject(request.error);
-    });
+  async updateAppointment(appointment: Appointment): Promise<Appointment> {
+    return this.update("appointments", appointment);
   }
 
-  async updateAppointmentStatus(
-    id: string,
-    status: Appointment["status"],
-    notes?: string
-  ): Promise<void> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["appointments"], "readwrite");
-    const appointmentsStore = transaction.objectStore("appointments");
-
-    const appointment = await new Promise<Appointment>((resolve, reject) => {
-      const request = appointmentsStore.get(id);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-
-    if (appointment) {
-      appointment.status = status;
-      appointment.updatedAt = new Date().toISOString();
-      appointment.synced = true; // Always true for client-only mode
-      if (notes) appointment.notes = notes;
-
-      await appointmentsStore.put(appointment);
-    }
+  async getAppointmentById(id: string): Promise<Appointment | undefined> {
+    return this.getById("appointments", id);
   }
 
-  async getCurrentUser(): Promise<User | null> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["users"], "readonly");
-    const store = transaction.objectStore("users");
-
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      request.onsuccess = () => {
-        const users = request.result;
-        resolve(users.length > 0 ? users[0] : null);
-      };
-      request.onerror = () => reject(request.error);
-    });
+  async getAppointments(patientId: string): Promise<Appointment[]> {
+    const db = await this.getDb();
+    return db.getAllFromIndex("appointments", "by-patient", patientId);
   }
 
-  async setCurrentUser(user: User): Promise<void> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["users"], "readwrite");
-    const store = transaction.objectStore("users");
-
-    // Clear existing users and set new one
-    await store.clear();
-    await store.add(user);
+  async getAllAppointments(): Promise<Appointment[]> {
+    return this.getAll("appointments");
   }
 
-  async clearCurrentUser(): Promise<void> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["users"], "readwrite");
-    const store = transaction.objectStore("users");
-    await store.clear();
-  }
-
+  // Medical Record operations
   async addMedicalRecord(
     record: Omit<MedicalRecord, "id" | "createdAt" | "updatedAt" | "synced">
   ): Promise<MedicalRecord> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const newRecord: MedicalRecord = {
-      ...record,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      synced: true, // Always true for client-only mode
-    };
-
-    const transaction = this.db.transaction(["medicalRecords"], "readwrite");
-    const recordsStore = transaction.objectStore("medicalRecords");
-
-    await recordsStore.add(newRecord);
-    return newRecord;
+    return this.add("medicalRecords", record);
   }
 
-  async getMedicalRecords(
-    patientId?: string,
-    doctorId?: string
-  ): Promise<MedicalRecord[]> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["medicalRecords"], "readonly");
-    const store = transaction.objectStore("medicalRecords");
-
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      request.onsuccess = () => {
-        let records = request.result;
-        if (patientId) {
-          records = records.filter((record) => record.patientId === patientId);
-        }
-        if (doctorId) {
-          records = records.filter((record) => record.doctorId === doctorId);
-        }
-        resolve(records);
-      };
-      request.onerror = () => reject(request.error);
-    });
+  async updateMedicalRecord(record: MedicalRecord): Promise<MedicalRecord> {
+    return this.update("medicalRecords", record);
   }
 
-  // Sync queue methods are no longer relevant for server sync, but can be kept if needed for local "pending" states
-  async getSyncQueue(): Promise<any[]> {
-    if (!this.db) throw new Error("Database not initialized");
-
-    const transaction = this.db.transaction(["syncQueue"], "readonly");
-    const store = transaction.objectStore("syncQueue");
-
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+  async getMedicalRecordById(id: string): Promise<MedicalRecord | undefined> {
+    return this.getById("medicalRecords", id);
   }
 
-  async clearSyncQueue(): Promise<void> {
-    if (!this.db) throw new Error("Database not initialized");
+  async getMedicalRecords(patientId: string): Promise<MedicalRecord[]> {
+    const db = await this.getDb();
+    return db.getAllFromIndex("medicalRecords", "by-patient", patientId);
+  }
 
-    const transaction = this.db.transaction(["syncQueue"], "readwrite");
-    const store = transaction.objectStore("syncQueue");
-    await store.clear();
+  async getAllMedicalRecords(): Promise<MedicalRecord[]> {
+    return this.getAll("medicalRecords");
+  }
+
+  // Clear all data (for development/testing)
+  async clearAllData(): Promise<void> {
+    const db = await this.getDb();
+    const tx = db.transaction(
+      ["users", "patients", "doctors", "appointments", "medicalRecords"],
+      "readwrite"
+    );
+    await Promise.all([
+      tx.objectStore("users").clear(),
+      tx.objectStore("patients").clear(),
+      tx.objectStore("doctors").clear(),
+      tx.objectStore("appointments").clear(),
+      tx.objectStore("medicalRecords").clear(),
+    ]);
+    await tx.done;
+    console.log("All IndexedDB data cleared.");
   }
 }
 
-// Create a singleton instance that's only initialized on the client
+// Singleton instance of LocalDB
 let localDBInstance: LocalDB | null = null;
 
-export const getLocalDB = (): LocalDB => {
-  if (typeof window === "undefined") {
-    throw new Error("LocalDB can only be used in browser environment");
-  }
-
+export function getLocalDB(): LocalDB {
   if (!localDBInstance) {
-    localDBInstance = new LocalDB();
+    localDBInstance = new LocalDB(null as any); // Pass null initially, it will be initialized on first use
   }
-
   return localDBInstance;
-};
-
-// For backward compatibility (if any components still use localDB directly)
-export const localDB = {
-  init: () => {
-    if (typeof window === "undefined")
-      return Promise.reject(new Error("Not in browser"));
-    return getLocalDB().init();
-  },
-  addPatient: (
-    patient: Omit<Patient, "createdAt" | "updatedAt" | "synced"> & {
-      id?: string;
-    }
-  ) => {
-    return getLocalDB().addPatient(patient);
-  },
-  getPatients: (doctorId?: string) => {
-    return getLocalDB().getPatients(doctorId);
-  },
-  getPatientById: (patientId: string) => {
-    return getLocalDB().getPatientById(patientId);
-  },
-  updatePatient: (patient: Patient) => {
-    return getLocalDB().updatePatient(patient);
-  },
-  addAppointment: (
-    appointment: Omit<Appointment, "id" | "createdAt" | "updatedAt" | "synced">
-  ) => {
-    return getLocalDB().addAppointment(appointment);
-  },
-  getAppointments: (patientId?: string, doctorId?: string) => {
-    return getLocalDB().getAppointments(patientId, doctorId);
-  },
-  updateAppointmentStatus: (
-    id: string,
-    status: Appointment["status"],
-    notes?: string
-  ) => {
-    return getLocalDB().updateAppointmentStatus(id, status, notes);
-  },
-  getCurrentUser: () => {
-    return getLocalDB().getCurrentUser();
-  },
-  setCurrentUser: (user: User) => {
-    return getLocalDB().setCurrentUser(user);
-  },
-  clearCurrentUser: () => {
-    return getLocalDB().clearCurrentUser();
-  },
-  getSyncQueue: () => {
-    return getLocalDB().getSyncQueue();
-  },
-  clearSyncQueue: () => {
-    return getLocalDB().clearSyncQueue();
-  },
-  addMedicalRecord: (
-    record: Omit<MedicalRecord, "id" | "createdAt" | "updatedAt" | "synced">
-  ) => {
-    return getLocalDB().addMedicalRecord(record);
-  },
-  getMedicalRecords: (patientId?: string, doctorId?: string) => {
-    return getLocalDB().getMedicalRecords(patientId, doctorId);
-  },
-};
+}

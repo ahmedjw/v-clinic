@@ -1,71 +1,92 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
+import { Cloud, CloudOff, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Wifi, WifiOff, RefreshCw } from "lucide-react"
-import { getSyncService } from "@/lib/sync"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useToast } from "@/hooks/use-toast"
+import { syncData } from "@/lib/sync"
 
 export function SyncStatus() {
-  const [isOnline, setIsOnline] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
+  const [lastSync, setLastSync] = useState<string | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
-    setMounted(true)
+    setIsOnline(navigator.onLine)
 
-    if (typeof window !== "undefined") {
-      setIsOnline(navigator.onLine)
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
 
-      const handleOnline = () => setIsOnline(true)
-      const handleOffline = () => setIsOnline(false)
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
 
-      window.addEventListener("online", handleOnline)
-      window.addEventListener("offline", handleOffline)
+    // Initial sync status check
+    const storedLastSync = localStorage.getItem("lastSync")
+    if (storedLastSync) {
+      setLastSync(new Date(storedLastSync).toLocaleString())
+    }
 
-      return () => {
-        window.removeEventListener("online", handleOnline)
-        window.removeEventListener("offline", handleOffline)
-      }
+    return () => {
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
     }
   }, [])
 
-  const handleSync = async () => {
-    if (typeof window === "undefined") return
-
-    setSyncing(true)
+  const handleManualSync = async () => {
+    setIsSyncing(true)
     try {
-      const syncService = getSyncService()
-      await syncService.forcSync()
+      // Simulate a network request for sync
+      await syncData() // This is a mock sync function
+      const now = new Date()
+      setLastSync(now.toLocaleString())
+      localStorage.setItem("lastSync", now.toISOString())
+      toast({
+        title: "Sync Successful",
+        description: "Your data has been synchronized with the cloud (mock).",
+      })
     } catch (error) {
-      console.error("Manual sync failed:", error)
+      console.error("Sync failed:", error)
+      toast({
+        title: "Sync Failed",
+        description: "Could not synchronize data. Please check your connection.",
+        variant: "destructive",
+      })
     } finally {
-      setSyncing(false)
+      setIsSyncing(false)
     }
   }
 
-  if (!mounted) {
-    return null
-  }
-
   return (
-    <div className="flex items-center space-x-2">
-      <Badge variant={isOnline ? "default" : "secondary"} className="flex items-center space-x-1">
-        {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-        <span>{isOnline ? "Online" : "Offline"}</span>
-      </Badge>
-      {isOnline && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSync}
-          disabled={syncing}
-          className="flex items-center space-x-1 bg-transparent"
-        >
-          <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
-          <span>Sync</span>
-        </Button>
-      )}
-    </div>
+    <TooltipProvider>
+      <div className="flex items-center gap-2">
+        {isOnline ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Cloud className="h-5 w-5 text-green-500" />
+            </TooltipTrigger>
+            <TooltipContent>Online</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <CloudOff className="h-5 w-5 text-red-500" />
+            </TooltipTrigger>
+            <TooltipContent>Offline</TooltipContent>
+          </Tooltip>
+        )}
+        {lastSync && <span className="text-sm text-gray-600 hidden sm:inline">Last Sync: {lastSync}</span>}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" onClick={handleManualSync} disabled={isSyncing || !isOnline}>
+              <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+              <span className="sr-only">Sync Now</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{isSyncing ? "Syncing..." : isOnline ? "Sync Now" : "Offline - Cannot Sync"}</TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
   )
 }

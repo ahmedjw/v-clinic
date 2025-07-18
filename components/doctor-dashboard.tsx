@@ -1,104 +1,81 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { EnhancedPatientForm } from "@/components/enhanced-patient-form"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { PlusCircle, Calendar, Users, FileText, MessageSquare, Settings, LogOut, Search } from "lucide-react"
+import type { Appointment, Patient, MedicalRecord, User } from "@/lib/db"
+import { getLocalDB } from "@/lib/db"
 import { AppointmentForm } from "@/components/appointment-form"
+import { PatientForm } from "@/components/patient-form"
 import { MedicalRecordForm } from "@/components/medical-record-form"
-import { getLocalDB, type Patient, type Appointment, type MedicalRecord, type User } from "@/lib/db"
-import { Calendar, Users, Plus, FileText, Activity, MessageSquare, Settings } from "lucide-react"
+import { PatientProfileModal } from "@/components/patient-profile-modal"
+import { DoctorProfileModal } from "@/components/doctor-profile-modal"
+import { UserSettingsForm } from "@/components/user-settings-form"
+import { AuthClientService } from "@/lib/auth-client"
+import { useRouter } from "next/navigation"
+import { MockChat } from "@/components/mock-chat"
+import { SyncStatus } from "@/components/sync-status"
+import { useToast } from "@/hooks/use-toast"
+import { ShareAppointmentModal } from "@/components/share-appointment-modal"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PatientProfileModal } from "./patient-profile-modal"
-import { MockChat } from "./mock-chat"
-import { UserSettingsForm } from "./user-settings-form"
-import { ShareAppointmentModal } from "./share-appointment-modal"
 
 interface DoctorDashboardProps {
-  user: User
+  doctor: User
 }
 
-export function DoctorDashboard({ user }: DoctorDashboardProps) {
-  const [patients, setPatients] = useState<Patient[]>([])
+export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
+  const [activeTab, setActiveTab] = useState("appointments")
   const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [patients, setPatients] = useState<Patient[]>([])
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([])
-  const [showPatientForm, setShowPatientForm] = useState(false)
-  const [showAppointmentForm, setShowAppointmentForm] = useState(false)
-  const [showMedicalRecordForm, setShowMedicalRecordForm] = useState(false)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [formType, setFormType] = useState<"appointment" | "patient" | "medicalRecord" | null>(null)
+  const [editingData, setEditingData] = useState<any>(null)
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [patientSearchTerm, setPatientSearchTerm] = useState("")
-  const [showChatModal, setShowChatModal] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
+  const [isDoctorProfileModalOpen, setIsDoctorProfileModalOpen] = useState(false)
+  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [appointmentToShare, setAppointmentToShare] = useState<Appointment | null>(null)
-  const [recipientPhone, setRecipientPhone] = useState<string | null>(null) // NEW: State for recipient phone
+  const [searchTerm, setSearchTerm] = useState("")
+
+  const router = useRouter()
+  const authService = new AuthClientService()
+  const { toast } = useToast()
+
+  const loadData = async () => {
+    const localDB = getLocalDB()
+    const allAppointments = await localDB.getAllAppointments()
+    const allPatients = await localDB.getAllPatients()
+    const allMedicalRecords = await localDB.getAllMedicalRecords()
+
+    // Filter appointments and medical records relevant to this doctor
+    const doctorAppointments = allAppointments.filter((apt) => apt.doctorId === doctor.id || apt.status === "pending")
+    const doctorMedicalRecords = allMedicalRecords.filter((rec) => rec.doctorId === doctor.id)
+
+    setAppointments(doctorAppointments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
+    setPatients(allPatients.sort((a, b) => a.name.localeCompare(b.name)))
+    setMedicalRecords(doctorMedicalRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
+  }
 
   useEffect(() => {
     loadData()
-  }, [user.id])
+  }, [doctor.id])
 
-  const loadData = async () => {
-    try {
-      const localDB = getLocalDB()
-      const [patientsData, appointmentsData, recordsData] = await Promise.all([
-        localDB.getPatients(user.id),
-        localDB.getAppointments(undefined, user.id),
-        localDB.getMedicalRecords(undefined, user.id),
-      ])
-      setPatients(patientsData)
-      setAppointments(appointmentsData)
-      setMedicalRecords(recordsData)
-    } catch (error) {
-      console.error("Failed to load data:", error)
-    } finally {
-      setLoading(false)
-    }
+  const handleOpenForm = (type: "appointment" | "patient" | "medicalRecord", data: any = null) => {
+    setFormType(type)
+    setEditingData(data)
+    setIsFormOpen(true)
   }
 
-  const handleAddPatient = async (patientData: Omit<Patient, "id" | "createdAt" | "updatedAt" | "synced">) => {
-    try {
-      const localDB = getLocalDB()
-      const patientWithDoctor = {
-        ...patientData,
-        assignedDoctorIds: [...(patientData.assignedDoctorIds || []), user.id],
-        id: crypto.randomUUID(), // Generate a unique id for the new patient
-      }
-      await localDB.addPatient(patientWithDoctor)
-      await loadData()
-      setShowPatientForm(false)
-    } catch (error) {
-      console.error("Failed to add patient:", error)
-    }
-  }
-
-  const handleAddAppointment = async (appointmentData: any) => {
-    try {
-      const localDB = getLocalDB()
-      const newAppointment = await localDB.addAppointment({ ...appointmentData, doctorId: user.id })
-      await loadData()
-      setShowAppointmentForm(false)
-      // NEW: Fetch patient phone for sharing
-      const patient = patients.find((p) => p.id === newAppointment.patientId)
-      setRecipientPhone(patient?.phone || null)
-      setAppointmentToShare(newAppointment)
-    } catch (error) {
-      console.error("Failed to add appointment:", error)
-    }
-  }
-
-  const handleAddMedicalRecord = async (recordData: any) => {
-    try {
-      const localDB = getLocalDB()
-      await localDB.addMedicalRecord({ ...recordData, doctorId: user.id })
-      await loadData()
-      setShowMedicalRecordForm(false)
-      setSelectedPatient(null)
-    } catch (error) {
-      console.error("Failed to add medical record:", error)
-    }
+  const handleCloseForm = () => {
+    setIsFormOpen(false)
+    setEditingData(null)
+    setFormType(null)
+    loadData() // Reload data after form submission/cancellation
   }
 
   const handleViewPatientProfile = (patient: Patient) => {
@@ -109,431 +86,310 @@ export function DoctorDashboard({ user }: DoctorDashboardProps) {
     setSelectedPatient(null)
   }
 
-  const handleUpdateUser = async (updatedUserData: Partial<User & Patient>) => {
-    try {
-      const localDB = getLocalDB()
-      const currentUser = await localDB.getCurrentUser()
-      if (currentUser) {
-        const updatedUser = { ...currentUser, ...updatedUserData }
-        await localDB.setCurrentUser(updatedUser)
-        console.log("User updated:", updatedUser)
-        setShowSettings(false)
-        window.location.reload()
-      }
-    } catch (error) {
-      console.error("Failed to update user:", error)
-    }
+  const handleLogout = async () => {
+    await authService.logout()
+    router.push("/login")
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    })
   }
 
-  const handleShareAppointmentClick = async (appointment: Appointment) => {
-    const localDB = getLocalDB()
-    const patient = await localDB.getPatientById(appointment.patientId)
-    setRecipientPhone(patient?.phone || null)
+  const handleShareAppointment = (appointment: Appointment) => {
     setAppointmentToShare(appointment)
+    setIsShareModalOpen(true)
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
+  const handleCloseShareModal = () => {
+    setIsShareModalOpen(false)
+    setAppointmentToShare(null)
   }
 
-  const todayAppointments = appointments.filter((apt) => apt.date === new Date().toISOString().split("T")[0])
+  const filteredAppointments = appointments.filter(
+    (apt) =>
+      apt.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      apt.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      apt.status.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
 
   const filteredPatients = patients.filter(
     (patient) =>
-      patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-      patient.email.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-      patient.phone.includes(patientSearchTerm),
+      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.phone.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  const filteredMedicalRecords = medicalRecords.filter(
+    (record) =>
+      record.diagnosis.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.treatment.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.patientName.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Doctor Dashboard</h1>
-        <p className="text-gray-600">Welcome back, Dr. {user.name}</p>
-      </div>
+    <div className="min-h-screen flex flex-col bg-gray-100">
+      <header className="bg-white shadow-sm p-4 flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-blue-700">Virtual Clinic - Doctor Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <SyncStatus />
+          <Button variant="outline" onClick={() => setIsUserSettingsOpen(true)}>
+            <Settings className="h-4 w-4 mr-2" /> Settings
+          </Button>
+          <Button variant="destructive" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-2" /> Logout
+          </Button>
+        </div>
+      </header>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 sm:mb-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">My Patients</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{patients.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Today's Appointments</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{todayAppointments.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Total Records</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{medicalRecords.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Active Cases</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">
-              {appointments.filter((apt) => apt.status === "scheduled").length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="appointments" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="appointments" className="text-xs sm:text-sm">
-            Appointments
-          </TabsTrigger>
-          <TabsTrigger value="patients" className="text-xs sm:text-sm">
-            Patients
-          </TabsTrigger>
-          <TabsTrigger value="records" className="text-xs sm:text-sm">
-            Records
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="text-xs sm:text-sm">
-            <Settings className="h-4 w-4 mr-1" /> My Profile
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="appointments" className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h2 className="text-lg sm:text-xl font-semibold">Appointments</h2>
-            <div className="flex flex-col sm:flex-row gap-4 mb-4">
-              <div className="flex-1">
-                <Input placeholder="Search appointments..." className="w-full" />
-              </div>
-              <Select>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Filter by..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Appointments</SelectItem>
-                  <SelectItem value="upcoming">Upcoming</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                  <SelectItem value="requested">Requested</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={() => setShowAppointmentForm(true)} className="w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Schedule Appointment
-            </Button>
-          </div>
-
-          {showAppointmentForm && (
-            <AppointmentForm
-              patients={patients}
-              onSubmit={handleAddAppointment}
-              onCancel={() => setShowAppointmentForm(false)}
-              currentUser={user}
-            />
-          )}
-
-          <div className="space-y-4">
-            {appointments.length === 0 ? (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No appointments scheduled</p>
-                </CardContent>
-              </Card>
-            ) : (
-              appointments.map((appointment) => (
-                <Card key={appointment.id}>
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                      <div className="space-y-2 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold">{appointment.patientName}</h3>
-                          <Badge variant="outline">{appointment.type}</Badge>
-                          <Badge
-                            variant={
-                              appointment.status === "scheduled"
-                                ? "default"
-                                : appointment.status === "requested"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                          >
-                            {appointment.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          {new Date(appointment.date).toLocaleDateString()} at {appointment.time}
-                        </p>
-                        {appointment.notes && <p className="text-sm text-gray-700">{appointment.notes}</p>}
-                      </div>
-                      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const patient = patients.find((p) => p.id === appointment.patientId)
-                            if (patient) {
-                              setSelectedPatient(patient)
-                              setShowMedicalRecordForm(true)
-                            }
-                          }}
-                          className="w-full sm:w-auto"
-                        >
-                          <FileText className="h-4 w-4 mr-1" />
-                          Add Record
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setShowChatModal(true)}
-                          className="w-full sm:w-auto"
-                        >
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Message
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleShareAppointmentClick(appointment)} // Call new handler
-                          className="w-full sm:w-auto"
-                        >
-                          Share
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="patients" className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h2 className="text-lg sm:text-xl font-semibold">My Patients</h2>
-            <div className="flex flex-col sm:flex-row gap-4 mb-4">
-              <div className="flex-1">
+      <main className="flex-1 p-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <TabsList className="grid w-full md:w-auto grid-cols-2 sm:grid-cols-4 lg:grid-cols-5">
+              <TabsTrigger value="appointments" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" /> Appointments
+              </TabsTrigger>
+              <TabsTrigger value="patients" className="flex items-center gap-2">
+                <Users className="h-4 w-4" /> Patients
+              </TabsTrigger>
+              <TabsTrigger value="medicalRecords" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Records
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" /> Chat
+              </TabsTrigger>
+            </TabsList>
+            <div className="flex w-full md:w-auto gap-2">
+              <div className="relative w-full md:w-auto">
                 <Input
-                  placeholder="Search patients by name or email..."
-                  className="w-full"
-                  value={patientSearchTerm}
-                  onChange={(e) => setPatientSearchTerm(e.target.value)}
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8"
                 />
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
               </div>
-              <Select>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Filter by..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Patients</SelectItem>
-                  <SelectItem value="recent">Recent Visits</SelectItem>
-                  <SelectItem value="upcoming">Upcoming Appointments</SelectItem>
-                </SelectContent>
-              </Select>
+              <Button onClick={() => handleOpenForm("appointment")}>
+                <PlusCircle className="h-4 w-4 mr-2" /> Add Appointment
+              </Button>
             </div>
-            <Button onClick={() => setShowPatientForm(true)} className="w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Patient
-            </Button>
           </div>
 
-          {showPatientForm && (
-            <EnhancedPatientForm
-              onSubmit={handleAddPatient}
-              onCancel={() => setShowPatientForm(false)}
-              currentUser={user}
-            />
-          )}
+          <TabsContent value="appointments">
+            <Card>
+              <CardHeader>
+                <CardTitle>Upcoming Appointments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAppointments.length > 0 ? (
+                      filteredAppointments.map((apt) => (
+                        <TableRow key={apt.id}>
+                          <TableCell className="font-medium">{apt.patientName}</TableCell>
+                          <TableCell>{new Date(apt.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{apt.time}</TableCell>
+                          <TableCell>{apt.type}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                apt.status === "scheduled"
+                                  ? "default"
+                                  : apt.status === "pending"
+                                    ? "secondary"
+                                    : "outline"
+                              }
+                            >
+                              {apt.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mr-2 bg-transparent"
+                              onClick={() => handleOpenForm("appointment", apt)}
+                            >
+                              Edit
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleShareAppointment(apt)}>
+                              Share
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-gray-500">
+                          No appointments found.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-          <div className="grid gap-4">
-            {filteredPatients.length === 0 ? (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No patients found matching your criteria.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              filteredPatients.map((patient) => (
-                <Card key={patient.id}>
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                      <div className="space-y-2 flex-1">
-                        <h3 className="font-semibold">{patient.name}</h3>
-                        <div className="text-sm text-gray-600 space-y-1">
-                          <p>Email: {patient.email}</p>
-                          <p>Phone: {patient.phone}</p>
-                          <p>DOB: {new Date(patient.dateOfBirth).toLocaleDateString()}</p>
-                          <p>Gender: {patient.gender}</p>
-                          {patient.allergies?.length > 0 && <p>Allergies: {patient.allergies.join(", ")}</p>}
-                        </div>
-                      </div>
-                      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewPatientProfile(patient)}
-                          className="w-full sm:w-auto"
-                        >
-                          <FileText className="h-4 w-4 mr-1" />
-                          View Profile
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedPatient(patient)
-                            setShowMedicalRecordForm(true)
-                          }}
-                          className="w-full sm:w-auto"
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add Record
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setShowChatModal(true)}
-                          className="w-full sm:w-auto"
-                        >
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Message
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </TabsContent>
+          <TabsContent value="patients">
+            <Card>
+              <CardHeader className="flex flex-row justify-between items-center">
+                <CardTitle>Patient List</CardTitle>
+                <Button onClick={() => handleOpenForm("patient")}>
+                  <PlusCircle className="h-4 w-4 mr-2" /> Add Patient
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPatients.length > 0 ? (
+                      filteredPatients.map((patient) => (
+                        <TableRow key={patient.id}>
+                          <TableCell className="font-medium">{patient.name}</TableCell>
+                          <TableCell>{patient.email}</TableCell>
+                          <TableCell>{patient.phone}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mr-2 bg-transparent"
+                              onClick={() => handleViewPatientProfile(patient)}
+                            >
+                              View Profile
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleOpenForm("patient", patient)}>
+                              Edit
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-gray-500">
+                          No patients found.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="records" className="space-y-4">
-          <h2 className="text-lg sm:text-xl font-semibold">Medical Records</h2>
-          <div className="flex flex-col sm:flex-row gap-4 mb-4">
-            <div className="flex-1">
-              <Input placeholder="Search records..." className="w-full" />
-            </div>
-            <Select>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Records</SelectItem>
-                <SelectItem value="recent">Recent</SelectItem>
-                <SelectItem value="diagnosis">By Diagnosis</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <TabsContent value="medicalRecords">
+            <Card>
+              <CardHeader className="flex flex-row justify-between items-center">
+                <CardTitle>Medical Records</CardTitle>
+                <Button onClick={() => handleOpenForm("medicalRecord")}>
+                  <PlusCircle className="h-4 w-4 mr-2" /> Add Record
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Diagnosis</TableHead>
+                      <TableHead>Treatment</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMedicalRecords.length > 0 ? (
+                      filteredMedicalRecords.map((record) => (
+                        <TableRow key={record.id}>
+                          <TableCell className="font-medium">{record.patientName}</TableCell>
+                          <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{record.diagnosis}</TableCell>
+                          <TableCell>{record.treatment}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm" onClick={() => handleOpenForm("medicalRecord", record)}>
+                              Edit
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-gray-500">
+                          No medical records found.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-          <div className="space-y-4">
-            {medicalRecords.length === 0 ? (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No medical records available.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              medicalRecords.map((record) => (
-                <Card key={record.id}>
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="space-y-3">
-                      <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
-                        <div>
-                          <h3 className="font-semibold">
-                            {patients.find((p) => p.id === record.patientId)?.name || "Unknown Patient"}
-                          </h3>
-                          <span className="text-sm text-gray-500">{new Date(record.date).toLocaleDateString()}</span>
-                        </div>
-                      </div>
+          <TabsContent value="chat">
+            <Card>
+              <CardHeader>
+                <CardTitle>Mock Chat Interface</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MockChat currentUser={doctor} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
 
-                      <div className="space-y-2 text-sm">
-                        <p>
-                          <strong>Diagnosis:</strong> {record.diagnosis}
-                        </p>
-                        <p>
-                          <strong>Symptoms:</strong> {record.symptoms.join(", ")}
-                        </p>
-                        <p>
-                          <strong>Treatment:</strong> {record.treatment}
-                        </p>
-
-                        {record.prescription.length > 0 && (
-                          <div>
-                            <strong>Prescriptions:</strong>
-                            <ul className="list-disc list-inside ml-4 mt-1">
-                              {record.prescription.map((med, index) => (
-                                <li key={index}>
-                                  {med.medication} - {med.dosage}, {med.frequency} for {med.duration}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {record.notes && (
-                          <p>
-                            <strong>Notes:</strong> {record.notes}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-4">
-          <h2 className="text-lg sm:text-xl font-semibold">My Profile Settings</h2>
-          <UserSettingsForm currentUser={user} onSave={handleUpdateUser} />
-        </TabsContent>
-      </Tabs>
-
-      {showMedicalRecordForm && selectedPatient && (
-        <MedicalRecordForm
-          patient={selectedPatient}
-          onSubmit={handleAddMedicalRecord}
-          onCancel={() => {
-            setShowMedicalRecordForm(false)
-            setSelectedPatient(null)
-          }}
-          currentUser={user}
-        />
+      {isFormOpen && formType === "appointment" && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <AppointmentForm initialData={editingData} onSave={handleCloseForm} onCancel={handleCloseForm} />
+        </div>
+      )}
+      {isFormOpen && formType === "patient" && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <PatientForm initialData={editingData} onSave={handleCloseForm} onCancel={handleCloseForm} />
+        </div>
+      )}
+      {isFormOpen && formType === "medicalRecord" && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <MedicalRecordForm
+            initialData={editingData}
+            onSave={handleCloseForm}
+            onCancel={handleCloseForm}
+            doctorId={doctor.id}
+          />
+        </div>
       )}
 
       {selectedPatient && <PatientProfileModal patient={selectedPatient} onClose={handleClosePatientProfile} />}
 
-      {showChatModal && <MockChat onClose={() => setShowChatModal(false)} />}
+      {isDoctorProfileModalOpen && (
+        <DoctorProfileModal doctor={doctor} onClose={() => setIsDoctorProfileModalOpen(false)} />
+      )}
 
-      {appointmentToShare && (
+      {isUserSettingsOpen && (
+        <UserSettingsForm user={doctor} onClose={() => setIsUserSettingsOpen(false)} onSave={loadData} />
+      )}
+
+      {isShareModalOpen && appointmentToShare && (
         <ShareAppointmentModal
           appointment={appointmentToShare}
-          onClose={() => setAppointmentToShare(null)}
-          senderRole={user.role}
-          recipientPhoneNumber={recipientPhone} // Pass recipient phone number
+          patient={patients.find((p) => p.id === appointmentToShare.patientId)}
+          onClose={handleCloseShareModal}
         />
       )}
     </div>

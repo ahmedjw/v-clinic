@@ -1,94 +1,125 @@
 "use client"
 
-import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { useState, useEffect } from "react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Copy, Share2 } from "lucide-react"
-import type { Appointment } from "@/lib/db"
+import { Label } from "@/components/ui/label"
+import { Copy, Share2, Check, MessageSquare } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import type { Appointment, Patient } from "@/lib/db"
 
 interface ShareAppointmentModalProps {
   appointment: Appointment
+  patient: Patient | undefined
   onClose: () => void
-  senderRole: "doctor" | "patient"
-  recipientPhoneNumber: string | null // NEW: Recipient's phone number
 }
 
-export function ShareAppointmentModal({
-  appointment,
-  onClose,
-  senderRole,
-  recipientPhoneNumber,
-}: ShareAppointmentModalProps) {
+export function ShareAppointmentModal({ appointment, patient, onClose }: ShareAppointmentModalProps) {
+  const [shareLink, setShareLink] = useState("")
   const [copied, setCopied] = useState(false)
+  const [phoneNumber, setPhoneNumber] = useState(patient?.phone || "")
+  const [smsSent, setSmsSent] = useState(false)
+  const { toast } = useToast()
 
-  const shareLink = `${window.location.origin}/share-appointment?id=${appointment.id}&date=${appointment.date}&time=${appointment.time}&type=${appointment.type}&patient=${encodeURIComponent(appointment.patientName)}&doctor=${encodeURIComponent(appointment.doctorId)}&status=${appointment.status}`
+  useEffect(() => {
+    if (appointment && patient) {
+      const baseUrl = window.location.origin // Gets the base URL of the deployed app
+      const link = `${baseUrl}/share-appointment?appointmentId=${appointment.id}&patientId=${patient.id}`
+      setShareLink(link)
+    }
+  }, [appointment, patient])
 
-  const handleCopy = () => {
+  const handleCopyLink = () => {
     navigator.clipboard.writeText(shareLink)
     setCopied(true)
+    toast({
+      title: "Link Copied!",
+      description: "The appointment share link has been copied to your clipboard.",
+    })
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleSimulateSMS = () => {
-    const recipientName = senderRole === "doctor" ? appointment.patientName : "Doctor"
-    const message = `Your appointment on ${new Date(appointment.date).toLocaleDateString()} at ${appointment.time} (${appointment.type}) is ${appointment.status}. View details: ${shareLink}`
+  const handleShareViaSMS = () => {
+    if (!phoneNumber) {
+      toast({
+        title: "Error",
+        description: "Please enter a phone number to send SMS.",
+        variant: "destructive",
+      })
+      return
+    }
 
-    alert(
-      `Simulating SMS share:\n\nTo: ${recipientName} ${recipientPhoneNumber ? `(${recipientPhoneNumber})` : ""}\nMessage: ${message}\n\n(This is a mock. In a real app, this would open your phone's messaging app.)`,
-    )
-    onClose()
+    const message = `Hi ${patient?.name || "there"}, your Virtual Clinic appointment details: ${shareLink}`
+    const smsUrl = `sms:${phoneNumber}?body=${encodeURIComponent(message)}`
+
+    try {
+      window.open(smsUrl, "_self") // Use _self to open in the same tab/window on mobile
+      setSmsSent(true)
+      toast({
+        title: "SMS Initiated",
+        description: "Your device's messaging app should open with the pre-filled SMS.",
+      })
+    } catch (error) {
+      console.error("Failed to open SMS app:", error)
+      toast({
+        title: "Error",
+        description: "Could not open messaging app. Please copy the link and send manually.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Share2 className="h-5 w-5" /> Share Appointment
           </DialogTitle>
-          <DialogDescription>
-            Share this appointment's details with the {senderRole === "doctor" ? "patient" : "doctor"}.
-            <br />
-            <span className="text-red-500">
-              (Note: This is a mock feature for demonstration. Real SMS integration requires a backend service.)
-            </span>
-          </DialogDescription>
+          <DialogDescription>Share this appointment's details with the patient.</DialogDescription>
         </DialogHeader>
-
-        <div className="space-y-4 mt-4">
-          {recipientPhoneNumber && (
-            <div className="space-y-2">
-              <label htmlFor="recipient-phone" className="text-sm font-medium">
-                Recipient Phone Number
-              </label>
-              <Input id="recipient-phone" value={recipientPhoneNumber} readOnly className="bg-gray-100" />
-            </div>
-          )}
-
+        <div className="grid gap-4 py-4">
           <div className="space-y-2">
-            <label htmlFor="share-link" className="text-sm font-medium">
-              Shareable Link
-            </label>
-            <div className="flex items-center space-x-2">
-              <Input id="share-link" value={shareLink} readOnly className="flex-1" />
-              <Button onClick={handleCopy} size="sm">
-                <Copy className="h-4 w-4 mr-2" />
-                {copied ? "Copied!" : "Copy"}
+            <Label htmlFor="shareLink">Shareable Link</Label>
+            <div className="flex space-x-2">
+              <Input id="shareLink" readOnly value={shareLink} className="flex-1" />
+              <Button onClick={handleCopyLink} size="icon" className="shrink-0">
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                <span className="sr-only">{copied ? "Copied" : "Copy Link"}</span>
               </Button>
             </div>
           </div>
-
-          <Button onClick={handleSimulateSMS} className="w-full">
-            Simulate SMS Share
-          </Button>
+          <div className="space-y-2">
+            <Label htmlFor="phoneNumber">Send via SMS (Patient's Phone)</Label>
+            <div className="flex space-x-2">
+              <Input
+                id="phoneNumber"
+                type="tel"
+                placeholder="Enter phone number"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+              <Button onClick={handleShareViaSMS} disabled={smsSent || !phoneNumber} size="icon" className="shrink-0">
+                <MessageSquare className="h-4 w-4" />
+                <span className="sr-only">Send SMS</span>
+              </Button>
+            </div>
+            {smsSent && <p className="text-sm text-green-600">SMS initiated!</p>}
+          </div>
         </div>
-
-        <div className="flex justify-end mt-6">
+        <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

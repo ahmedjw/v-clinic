@@ -2,86 +2,76 @@
 
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { getLocalDB, type Appointment, type Patient } from "@/lib/db"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { getLocalDB, type Appointment } from "@/lib/db"
-import { CheckCircle, XCircle, Info } from "lucide-react"
+import { Calendar, Clock, User } from "lucide-react"
+import { AuthClientService } from "@/lib/auth-client"
 
 export default function ShareAppointmentPage() {
   const searchParams = useSearchParams()
+  const appointmentId = searchParams.get("appointmentId")
+  const patientId = searchParams.get("patientId")
+
   const [appointment, setAppointment] = useState<Appointment | null>(null)
+  const [patient, setPatient] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const authService = new AuthClientService()
 
   useEffect(() => {
-    const fetchAppointmentDetails = async () => {
-      setLoading(true)
-      setError(null)
+    const loadAppointmentData = async () => {
+      if (!appointmentId || !patientId) {
+        setError("Invalid appointment link.")
+        setLoading(false)
+        return
+      }
+
       try {
-        const id = searchParams.get("id")
-        const date = searchParams.get("date")
-        const time = searchParams.get("time")
-        const type = searchParams.get("type") as Appointment["type"]
-        const patientName = searchParams.get("patient")
-        const doctorId = searchParams.get("doctor")
-        const status = searchParams.get("status") as Appointment["status"]
+        const localDB = getLocalDB()
+        const foundAppointment = await localDB.getAppointmentById(appointmentId)
+        const foundPatient = await localDB.getPatientById(patientId)
 
-        if (!id || !date || !time || !type || !patientName || !doctorId || !status) {
-          setError("Missing appointment details in the link.")
-          return
+        if (foundAppointment && foundPatient && foundAppointment.patientId === foundPatient.id) {
+          setAppointment(foundAppointment)
+          setPatient(foundPatient)
+        } else {
+          setError("Appointment or patient not found, or data mismatch.")
         }
-
-        // In a real app, you'd fetch the appointment from a backend using the ID.
-        // For this mock, we reconstruct it from URL params.
-        const mockAppointment: Appointment = {
-          id,
-          date,
-          time,
-          type,
-          patientName,
-          doctorId,
-          status,
-          patientId: "mock-patient-id", // Placeholder, as patientId isn't in URL for simplicity
-          notes: "Details from shared link.",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          synced: true,
-        }
-        setAppointment(mockAppointment)
       } catch (err) {
-        console.error("Error parsing appointment details:", err)
-        setError("Failed to load appointment details.")
+        console.error("Failed to load shared appointment:", err)
+        setError("Failed to load appointment data. Please try again later.")
       } finally {
         setLoading(false)
       }
     }
 
-    fetchAppointmentDetails()
-  }, [searchParams])
+    loadAppointmentData()
+  }, [appointmentId, patientId])
 
-  const handleUpdateStatus = async (newStatus: Appointment["status"]) => {
-    if (!appointment) return
+  const handleAddToCalendar = () => {
+    if (!appointment || !patient) return
 
-    setLoading(true)
-    try {
-      const localDB = getLocalDB()
-      await localDB.init()
-      await localDB.updateAppointmentStatus(appointment.id, newStatus)
-      setAppointment((prev) => (prev ? { ...prev, status: newStatus } : null))
-      alert(`Appointment status updated to ${newStatus}!`)
-    } catch (err) {
-      console.error("Failed to update appointment status:", err)
-      setError("Failed to update appointment status locally.")
-    } finally {
-      setLoading(false)
+    const eventTitle = `Virtual Clinic Appointment with Dr. ${authService.getMockDoctors().find((d) => d.id === appointment.doctorId)?.name || "Unknown"}`
+    const eventDescription = `Type: ${appointment.type}\nNotes: ${appointment.notes}\nPatient: ${patient.name}`
+    const eventLocation = "Virtual Clinic"
+
+    const startDate = new Date(`${appointment.date}T${appointment.time}:00`)
+    const endDate = new Date(startDate.getTime() + 30 * 60 * 1000) // Assuming 30 min appointments
+
+    const formatDateTime = (date: Date) => {
+      return date.toISOString().replace(/-|:|\.\d{3}/g, "")
     }
+
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDateTime(startDate)}/${formatDateTime(endDate)}&details=${encodeURIComponent(eventDescription)}&location=${encodeURIComponent(eventLocation)}`
+
+    window.open(googleCalendarUrl, "_blank")
   }
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
   }
@@ -91,13 +81,12 @@ export default function ShareAppointmentPage() {
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center">
           <CardHeader>
-            <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <CardTitle>Error Loading Appointment</CardTitle>
+            <CardTitle className="text-red-600">Error</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600">{error}</p>
-            <Button onClick={() => (window.location.href = "/login")} className="mt-4">
-              Go to Login
+            <p>{error}</p>
+            <Button onClick={() => (window.location.href = "/")} className="mt-4">
+              Go to Home
             </Button>
           </CardContent>
         </Card>
@@ -105,18 +94,17 @@ export default function ShareAppointmentPage() {
     )
   }
 
-  if (!appointment) {
+  if (!appointment || !patient) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center">
           <CardHeader>
-            <Info className="h-12 w-12 text-blue-500 mx-auto mb-4" />
             <CardTitle>Appointment Not Found</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600">The appointment details could not be loaded.</p>
-            <Button onClick={() => (window.location.href = "/login")} className="mt-4">
-              Go to Login
+            <p>The appointment details could not be loaded.</p>
+            <Button onClick={() => (window.location.href = "/")} className="mt-4">
+              Go to Home
             </Button>
           </CardContent>
         </Card>
@@ -124,67 +112,71 @@ export default function ShareAppointmentPage() {
     )
   }
 
+  const doctor = authService.getMockDoctors().find((d) => d.id === appointment.doctorId)
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-lg shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Appointment Details</CardTitle>
-          <p className="text-sm text-gray-500">Received via shared link</p>
+          <CardTitle className="text-3xl font-bold text-blue-700">Appointment Details</CardTitle>
+          <p className="text-gray-600 mt-2">Your upcoming virtual clinic appointment</p>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <p>
-              <strong>Patient:</strong> {appointment.patientName}
-            </p>
-            <p>
-              <strong>Doctor ID:</strong> {appointment.doctorId}
-            </p>
-            <p>
-              <strong>Date:</strong> {new Date(appointment.date).toLocaleDateString()}
-            </p>
-            <p>
-              <strong>Time:</strong> {appointment.time}
-            </p>
-            <p>
-              <strong>Type:</strong> <Badge variant="outline">{appointment.type}</Badge>
-            </p>
-            <p>
-              <strong>Status:</strong>{" "}
-              <Badge
-                variant={
-                  appointment.status === "scheduled"
-                    ? "default"
-                    : appointment.status === "requested"
-                      ? "secondary"
-                      : "outline"
-                }
-              >
-                {appointment.status}
-              </Badge>
-            </p>
-            <p>
-              <strong>Notes:</strong> {appointment.notes}
-            </p>
+        <CardContent className="space-y-6">
+          <div className="flex items-center space-x-3">
+            <Calendar className="h-6 w-6 text-blue-500" />
+            <div>
+              <p className="text-lg font-semibold">Date:</p>
+              <p className="text-gray-800">
+                {new Date(appointment.date).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            </div>
           </div>
-
-          <div className="flex flex-col gap-2">
-            <Button
-              onClick={() => handleUpdateStatus("scheduled")}
-              disabled={appointment.status === "scheduled" || loading}
-            >
-              <CheckCircle className="h-4 w-4 mr-2" /> Mark as Scheduled
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleUpdateStatus("cancelled")}
-              disabled={appointment.status === "cancelled" || loading}
-            >
-              <XCircle className="h-4 w-4 mr-2" /> Mark as Cancelled
-            </Button>
-            <Button variant="secondary" onClick={() => (window.location.href = "/")} className="mt-2">
-              Go to Dashboard
-            </Button>
+          <div className="flex items-center space-x-3">
+            <Clock className="h-6 w-6 text-blue-500" />
+            <div>
+              <p className="text-lg font-semibold">Time:</p>
+              <p className="text-gray-800">{appointment.time}</p>
+            </div>
           </div>
+          <div className="flex items-center space-x-3">
+            <User className="h-6 w-6 text-blue-500" />
+            <div>
+              <p className="text-lg font-semibold">Patient:</p>
+              <p className="text-gray-800">{patient.name}</p>
+            </div>
+          </div>
+          {doctor && (
+            <div className="flex items-center space-x-3">
+              <User className="h-6 w-6 text-blue-500" />
+              <div>
+                <p className="text-lg font-semibold">Doctor:</p>
+                <p className="text-gray-800">
+                  {doctor.name} ({doctor.specialization})
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="border-t pt-4 mt-4">
+            <p className="text-lg font-semibold">Appointment Type:</p>
+            <p className="text-gray-800">{appointment.type}</p>
+          </div>
+          {appointment.notes && (
+            <div>
+              <p className="text-lg font-semibold">Notes:</p>
+              <p className="text-gray-800">{appointment.notes}</p>
+            </div>
+          )}
+          <Button onClick={handleAddToCalendar} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white">
+            Add to Calendar
+          </Button>
+          <Button onClick={() => (window.location.href = "/")} variant="outline" className="w-full mt-2">
+            Go to Virtual Clinic
+          </Button>
         </CardContent>
       </Card>
     </div>

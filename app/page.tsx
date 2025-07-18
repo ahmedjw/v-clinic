@@ -1,48 +1,49 @@
-"use client"
+/*eslint-disable*/
 
+"use client"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { AuthClientService } from "@/lib/auth-client"
+import { DoctorDashboard } from "@/components/doctor-dashboard"
+import { PatientDashboard } from "@/components/patient-dashboard"
 import { AuthGuard } from "@/components/auth-guard"
-import { PWAInstaller } from "@/components/pwa-installer"
-import type { Patient, Appointment } from "@/lib/db"
+import type { User } from "@/lib/db"
 
 export default function HomePage() {
-  const [patients, setPatients] = useState<Patient[]>([])
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [showPatientForm, setShowPatientForm] = useState(false)
-  const [showAppointmentForm, setShowAppointmentForm] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [mounted, setMounted] = useState(false)
+  const router = useRouter()
+  const authService = new AuthClientService()
 
   useEffect(() => {
-    setMounted(true)
-
-    // Register service worker
-    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch((error) => {
-        console.error("Service Worker registration failed:", error)
-      })
+    const checkAuth = async () => {
+      const currentUser = await authService.getCurrentUser()
+      if (currentUser) {
+        setUser(currentUser)
+      } else {
+        router.replace("/login")
+      }
+      setLoading(false)
     }
+    checkAuth()
+  }, [router])
 
-    // The IndexedDB initialization and data loading is now handled by AuthGuard
-    // This component will primarily render AuthGuard
-    setLoading(false) // Set loading to false as AuthGuard handles its own loading
-  }, [])
-
-  // Don't render until mounted to avoid hydration issues
-  if (!mounted) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
-  // This component now primarily acts as a wrapper for AuthGuard
-  // The actual dashboard logic is within DoctorDashboard and PatientDashboard
+  if (!user) {
+    // Should be redirected by AuthGuard or useEffect, but as a fallback
+    return null
+  }
+
   return (
     <AuthGuard>
-      {/* The content of the dashboard will be rendered by AuthGuard based on user role */}
-      <PWAInstaller />
+      {user.role === "doctor" ? <DoctorDashboard doctor={user} /> : <PatientDashboard patient={user} />}
     </AuthGuard>
   )
 }

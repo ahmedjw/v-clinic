@@ -20,9 +20,7 @@ export function PatientProfileModal({ patient, onClose }: PatientProfileModalPro
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([])
   const [assignedDoctors, setAssignedDoctors] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-
-  // Create an instance of AuthClientService
-  const authService = new AuthClientService()
+  const authService = new AuthClientService() // Create an instance
 
   useEffect(() => {
     const loadPatientData = async () => {
@@ -30,13 +28,11 @@ export function PatientProfileModal({ patient, onClose }: PatientProfileModalPro
         const localDB = getLocalDB()
         const patientAppointments = await localDB.getAppointments(patient.id)
         const patientRecords = await localDB.getMedicalRecords(patient.id)
-
         setAppointments(patientAppointments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
         setMedicalRecords(patientRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
 
         let allUsers: User[] = []
-        // Call getMockDoctors on the instance
-        allUsers = await authService.getMockDoctors()
+        allUsers = authService.getMockDoctors() // Call on the instance
         const allDoctors = allUsers.filter((user: User) => user.role === "doctor")
         const assigned = allDoctors.filter((doc: User) => patient.assignedDoctorIds.includes(doc.id))
         setAssignedDoctors(assigned)

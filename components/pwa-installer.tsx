@@ -2,11 +2,18 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Download, X } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { useToast } from "@/hooks/use-toast"
 
 interface BeforeInstallPromptEvent extends Event {
-  readonly platforms: string[]
+  readonly platforms: Array<string>
   readonly userChoice: Promise<{
     outcome: "accepted" | "dismissed"
     platform: string
@@ -16,85 +23,90 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function PWAInstaller() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [isAppInstalled, setIsAppInstalled] = useState(false)
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
-  const [isInstalled, setIsInstalled] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
-    // Check if app is already installed
-    if (window.matchMedia("(display-mode: standalone)").matches) {
-      setIsInstalled(true)
-      return
-    }
-
-    // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
       setShowInstallPrompt(true)
+      toast({
+        title: "Install App",
+        description: "Add Virtual Clinic to your home screen for quick access!",
+        action: (
+          <Button
+            onClick={() => {
+              setShowInstallPrompt(true)
+            }}
+            className="whitespace-nowrap"
+          >
+            Install
+          </Button>
+        ),
+        duration: 10000,
+      })
     }
 
-    // Listen for app installed event
     const handleAppInstalled = () => {
-      setIsInstalled(true)
-      setShowInstallPrompt(false)
+      setIsAppInstalled(true)
       setDeferredPrompt(null)
+      setShowInstallPrompt(false)
+      toast({
+        title: "Installation Successful!",
+        description: "Virtual Clinic has been added to your home screen.",
+      })
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
     window.addEventListener("appinstalled", handleAppInstalled)
 
+    // Check if the app is already installed (e.g., running in standalone mode)
+    if (window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone) {
+      setIsAppInstalled(true)
+    }
+
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
       window.removeEventListener("appinstalled", handleAppInstalled)
     }
-  }, [])
+  }, [toast])
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return
-
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
-
-    if (outcome === "accepted") {
+    if (deferredPrompt) {
+      deferredPrompt.prompt()
+      const { outcome } = await deferredPrompt.userChoice
+      if (outcome === "accepted") {
+        console.log("User accepted the install prompt.")
+      } else {
+        console.log("User dismissed the install prompt.")
+      }
+      setDeferredPrompt(null)
       setShowInstallPrompt(false)
     }
-
-    setDeferredPrompt(null)
   }
 
-  const handleDismiss = () => {
-    setShowInstallPrompt(false)
-    setDeferredPrompt(null)
-  }
-
-  if (isInstalled || !showInstallPrompt) {
+  if (!deferredPrompt || isAppInstalled || !showInstallPrompt) {
     return null
   }
 
   return (
-    <Card className="fixed bottom-4 right-4 w-80 z-50 shadow-lg">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Install App
-          </CardTitle>
-          <Button variant="ghost" size="sm" onClick={handleDismiss}>
-            <X className="h-4 w-4" />
+    <Dialog open={showInstallPrompt} onOpenChange={setShowInstallPrompt}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Install Virtual Clinic</DialogTitle>
+          <DialogDescription>
+            Add this application to your home screen for a faster and more integrated experience.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowInstallPrompt(false)}>
+            Not now
           </Button>
-        </div>
-        <CardDescription>Install Virtual Clinic for offline access and better performance</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="flex gap-2">
-          <Button onClick={handleInstallClick} className="flex-1">
-            Install
-          </Button>
-          <Button variant="outline" onClick={handleDismiss}>
-            Later
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <Button onClick={handleInstallClick}>Install App</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

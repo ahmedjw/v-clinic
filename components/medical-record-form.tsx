@@ -2,351 +2,210 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { X, Plus } from "lucide-react"
-import type { Patient, User } from "@/lib/db" // Import User type
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import type { MedicalRecord, Patient } from "@/lib/db"
+import { getLocalDB } from "@/lib/db"
+import { useToast } from "@/hooks/use-toast"
 
 interface MedicalRecordFormProps {
-  patient: Patient
-  onSubmit: (record: any) => Promise<void>
+  initialData?: MedicalRecord
+  patientId?: string // Optional, if creating a record for a specific patient
+  doctorId: string // Doctor creating/editing the record
+  onSave: (record: MedicalRecord) => void
   onCancel: () => void
-  currentUser: User // Pass current user to assign doctor
 }
 
-export function MedicalRecordForm({ patient, onSubmit, onCancel, currentUser }: MedicalRecordFormProps) {
-  const [formData, setFormData] = useState({
-    patientId: patient.id,
-    doctorId: currentUser.id, // Auto-assign current doctor
-    date: new Date().toISOString().split("T")[0],
-    diagnosis: "",
-    symptoms: [] as string[],
-    treatment: "",
-    prescription: [] as Array<{
-      medication: string
-      dosage: string
-      frequency: string
-      duration: string
-    }>,
-    vitals: {
-      bloodPressure: "",
-      heartRate: "",
-      temperature: "",
-      weight: "",
-      height: "",
-    },
-    notes: "",
-    followUpDate: "",
+export function MedicalRecordForm({ initialData, patientId, doctorId, onSave, onCancel }: MedicalRecordFormProps) {
+  const [formData, setFormData] = useState<Omit<MedicalRecord, "id" | "createdAt" | "updatedAt" | "synced">>({
+    patientId: initialData?.patientId || patientId || "",
+    doctorId: initialData?.doctorId || doctorId,
+    patientName: initialData?.patientName || "",
+    date: initialData?.date || new Date().toISOString().split("T")[0], // Default to today
+    diagnosis: initialData?.diagnosis || "",
+    treatment: initialData?.treatment || "",
+    notes: initialData?.notes || "",
   })
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
 
-  const [currentSymptom, setCurrentSymptom] = useState("")
-  const [currentMedication, setCurrentMedication] = useState({
-    medication: "",
-    dosage: "",
-    frequency: "",
-    duration: "",
-  })
-  const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    const loadPatients = async () => {
+      try {
+        const localDB = getLocalDB()
+        const allPatients = await localDB.getAllPatients()
+        setPatients(allPatients)
+
+        if (patientId && !initialData) {
+          const selectedPatient = allPatients.find((p) => p.id === patientId)
+          if (selectedPatient) {
+            setFormData((prev) => ({ ...prev, patientName: selectedPatient.name }))
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load patients:", err)
+        setError("Failed to load patient data for the form.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadPatients()
+  }, [patientId, initialData])
+
+  const handleChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    if (field === "patientId") {
+      const selectedPatient = patients.find((p) => p.id === value)
+      if (selectedPatient) {
+        setFormData((prev) => ({ ...prev, patientName: selectedPatient.name }))
+      }
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    setError(null)
+
+    if (!formData.patientId || !formData.date || !formData.diagnosis || !formData.treatment) {
+      setError("Please fill in all required fields: Patient, Date, Diagnosis, and Treatment.")
+      return
+    }
 
     try {
-      // Clean up vitals - remove empty values
-      const cleanVitals = Object.fromEntries(Object.entries(formData.vitals).filter(([_, value]) => value !== ""))
+      const localDB = getLocalDB()
+      let savedRecord: MedicalRecord
 
-      await onSubmit({
-        ...formData,
-        vitals: cleanVitals,
-        followUpDate: formData.followUpDate || undefined,
-      })
-    } catch (error) {
-      console.error("Failed to add medical record:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const addSymptom = () => {
-    if (currentSymptom.trim()) {
-      setFormData((prev) => ({
-        ...prev,
-        symptoms: [...prev.symptoms, currentSymptom.trim()],
-      }))
-      setCurrentSymptom("")
-    }
-  }
-
-  const removeSymptom = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      symptoms: prev.symptoms.filter((_, i) => i !== index),
-    }))
-  }
-
-  const addMedication = () => {
-    if (currentMedication.medication.trim()) {
-      setFormData((prev) => ({
-        ...prev,
-        prescription: [...prev.prescription, { ...currentMedication }],
-      }))
-      setCurrentMedication({
-        medication: "",
-        dosage: "",
-        frequency: "",
-        duration: "",
+      if (initialData) {
+        savedRecord = await localDB.updateMedicalRecord({ ...initialData, ...formData })
+        toast({
+          title: "Medical Record Updated",
+          description: `Record for ${formData.patientName} on ${formData.date} has been updated.`,
+        })
+      } else {
+        savedRecord = await localDB.addMedicalRecord(formData)
+        toast({
+          title: "Medical Record Added",
+          description: `New record for ${formData.patientName} on ${formData.date} has been added.`,
+        })
+      }
+      onSave(savedRecord)
+    } catch (err) {
+      console.error("Failed to save medical record:", err)
+      setError("Failed to save medical record. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to save medical record.",
+        variant: "destructive",
       })
     }
   }
 
-  const removeMedication = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      prescription: prev.prescription.filter((_, i) => i !== index),
-    }))
+  if (loading) {
+    return (
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>{initialData ? "Edit Medical Record" : "Add New Medical Record"}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <CardHeader>
-          <CardTitle>Add Medical Record - {patient.name}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="followUpDate">Follow-up Date (Optional)</Label>
-                <Input
-                  id="followUpDate"
-                  type="date"
-                  value={formData.followUpDate}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, followUpDate: e.target.value }))}
-                />
-              </div>
-            </div>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>{initialData ? "Edit Medical Record" : "Add New Medical Record"}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-            {/* Diagnosis */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="diagnosis">Diagnosis</Label>
+              <Label htmlFor="patientId">Patient</Label>
+              <Select
+                value={formData.patientId}
+                onValueChange={(value) => handleChange("patientId", value)}
+                disabled={!!patientId || !!initialData} // Disable if patientId is provided or editing existing
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} ({p.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date">Date</Label>
               <Input
-                id="diagnosis"
-                value={formData.diagnosis}
-                onChange={(e) => setFormData((prev) => ({ ...prev, diagnosis: e.target.value }))}
-                placeholder="Primary diagnosis"
+                id="date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => handleChange("date", e.target.value)}
                 required
               />
             </div>
+          </div>
 
-            {/* Symptoms */}
-            <div className="space-y-2">
-              <Label>Symptoms</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={currentSymptom}
-                  onChange={(e) => setCurrentSymptom(e.target.value)}
-                  placeholder="Add symptom"
-                  onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addSymptom())}
-                />
-                <Button type="button" onClick={addSymptom} size="sm">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {formData.symptoms.map((symptom, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                    {symptom}
-                    <button type="button" onClick={() => removeSymptom(index)} className="ml-1 hover:text-red-500">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="diagnosis">Diagnosis</Label>
+            <Textarea
+              id="diagnosis"
+              value={formData.diagnosis}
+              onChange={(e) => handleChange("diagnosis", e.target.value)}
+              placeholder="Enter diagnosis..."
+              required
+            />
+          </div>
 
-            {/* Treatment */}
-            <div className="space-y-2">
-              <Label htmlFor="treatment">Treatment</Label>
-              <Textarea
-                id="treatment"
-                value={formData.treatment}
-                onChange={(e) => setFormData((prev) => ({ ...prev, treatment: e.target.value }))}
-                placeholder="Treatment plan and procedures"
-                rows={3}
-                required
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="treatment">Treatment</Label>
+            <Textarea
+              id="treatment"
+              value={formData.treatment}
+              onChange={(e) => handleChange("treatment", e.target.value)}
+              placeholder="Enter treatment details..."
+              required
+            />
+          </div>
 
-            {/* Vitals */}
-            <div className="space-y-4">
-              <Label className="text-base font-medium">Vitals</Label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="bloodPressure">Blood Pressure</Label>
-                  <Input
-                    id="bloodPressure"
-                    value={formData.vitals.bloodPressure}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        vitals: { ...prev.vitals, bloodPressure: e.target.value },
-                      }))
-                    }
-                    placeholder="120/80"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="heartRate">Heart Rate (bpm)</Label>
-                  <Input
-                    id="heartRate"
-                    type="number"
-                    value={formData.vitals.heartRate}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        vitals: { ...prev.vitals, heartRate: e.target.value },
-                      }))
-                    }
-                    placeholder="72"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="temperature">Temperature (°C)</Label>
-                  <Input
-                    id="temperature"
-                    type="number"
-                    step="0.1"
-                    value={formData.vitals.temperature}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        vitals: { ...prev.vitals, temperature: e.target.value },
-                      }))
-                    }
-                    placeholder="36.5"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="weight">Weight (kg)</Label>
-                  <Input
-                    id="weight"
-                    type="number"
-                    step="0.1"
-                    value={formData.vitals.weight}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        vitals: { ...prev.vitals, weight: e.target.value },
-                      }))
-                    }
-                    placeholder="70"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="height">Height (cm)</Label>
-                  <Input
-                    id="height"
-                    type="number"
-                    value={formData.vitals.height}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        vitals: { ...prev.vitals, height: e.target.value },
-                      }))
-                    }
-                    placeholder="175"
-                  />
-                </div>
-              </div>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Textarea
+              id="notes"
+              value={formData.notes || ""}
+              onChange={(e) => handleChange("notes", e.target.value)}
+              placeholder="Any additional notes..."
+            />
+          </div>
 
-            {/* Prescriptions */}
-            <div className="space-y-4">
-              <Label className="text-base font-medium">Prescriptions</Label>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 border rounded-lg">
-                <Input
-                  value={currentMedication.medication}
-                  onChange={(e) => setCurrentMedication((prev) => ({ ...prev, medication: e.target.value }))}
-                  placeholder="Medication name"
-                />
-                <Input
-                  value={currentMedication.dosage}
-                  onChange={(e) => setCurrentMedication((prev) => ({ ...prev, dosage: e.target.value }))}
-                  placeholder="Dosage (e.g., 500mg)"
-                />
-                <Input
-                  value={currentMedication.frequency}
-                  onChange={(e) => setCurrentMedication((prev) => ({ ...prev, frequency: e.target.value }))}
-                  placeholder="Frequency (e.g., twice daily)"
-                />
-                <div className="flex gap-2">
-                  <Input
-                    value={currentMedication.duration}
-                    onChange={(e) => setCurrentMedication((prev) => ({ ...prev, duration: e.target.value }))}
-                    placeholder="Duration (e.g., 7 days)"
-                  />
-                  <Button type="button" onClick={addMedication} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {formData.prescription.map((med, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <span className="font-medium">{med.medication}</span> - {med.dosage}, {med.frequency} for{" "}
-                      {med.duration}
-                    </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => removeMedication(index)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Additional Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-                placeholder="Additional observations, recommendations, or notes"
-                rows={3}
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button type="submit" disabled={loading} className="flex-1">
-                {loading ? "Saving..." : "Save Medical Record"}
-              </Button>
-              <Button type="button" variant="outline" onClick={onCancel} className="flex-1 bg-transparent">
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit">{initialData ? "Update Record" : "Add Record"}</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

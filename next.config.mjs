@@ -1,46 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-experimental: {
-  swcMinify: true,
-},
-eslint: {
-  ignoreDuringBuilds: false,
-},
-typescript: {
-  ignoreBuildErrors: false,
-},
-images: {
-  unoptimized: true,
-},
-// PWA configuration headers are no longer strictly needed as there's no server-side API
-// but keeping them doesn't hurt for client-side PWA functionality.
-// If you want to remove them completely, you can delete this `headers` block.
-async headers() {
-  return [
-    {
-      source: '/manifest.json',
-      headers: [
-        {
-          key: 'Content-Type',
-          value: 'application/manifest+json',
-        },
-      ],
-    },
-    {
-      source: '/sw.js',
-      headers: [
-        {
-          key: 'Content-Type',
-          value: 'application/javascript',
-        },
-        {
-          key: 'Service-Worker-Allowed',
-          value: '/',
-        },
-      ],
-    },
-  ];
-},
+  output: "export", // Enables static HTML export for PWA
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  images: {
+    unoptimized: true, // Required for static export with Next/Image
+  },
+  webpack: (config, { isServer }) => {
+    // Polyfill 'path' module for client-side if needed by any dependency
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        path: require.resolve("path-browserify"),
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

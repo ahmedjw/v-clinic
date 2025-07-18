@@ -1,225 +1,119 @@
-/* eslint-disable */
+import { getLocalDB } from "./db"
+import { AuthClientService } from "./auth-client"
+import { v4 as uuidv4 } from "uuid"
+import type { Patient, Doctor, Appointment, MedicalRecord, User } from "./db"
 
-import { getLocalDB, type User } from "./db";
+const authService = new AuthClientService()
+const localDB = getLocalDB()
 
-export class AuthService {
-  private static instance: AuthService;
-  private currentUser: User | null = null;
+export async function initializeMockData() {
+  // Check if mock data already exists to prevent re-adding on every load
+  const existingPatients = await localDB.getAllPatients()
+  const existingDoctors = await localDB.getAllDoctors()
 
-  static getInstance(): AuthService {
-    if (!AuthService.instance) {
-      AuthService.instance = new AuthService();
-    }
-    return AuthService.instance;
+  if (existingPatients.length > 0 || existingDoctors.length > 0) {
+    console.log("Mock data already exists in IndexedDB. Skipping initialization.")
+    return
   }
 
-  async login(email: string, password: string): Promise<User> {
-    if (typeof window === "undefined") {
-      throw new Error("Authentication only available in browser");
-    }
+  console.log("Initializing mock data for IndexedDB...")
 
-    // Simulate API call - in real app, this would validate against server
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Mock user data - expanded to include patients
-    const mockUsers = [
-      {
-        email: "doctor@clinic.com",
-        password: "doctor123",
-        name: "Dr. Sarah Smith",
-        role: "doctor" as const,
-        specialization: "General Medicine",
-        licenseNumber: "MD12345",
-      },
-      {
-        email: "patient@clinic.com",
-        password: "patient123",
-        name: "John Doe",
-        role: "patient" as const,
-        patientId: "patient-1",
-      },
-      {
-        email: "patient2@clinic.com",
-        password: "patient123",
-        name: "Jane Smith",
-        role: "patient" as const,
-        patientId: "patient-2",
-      },
-    ];
-
-    const mockUser = mockUsers.find(
-      (u) => u.email === email && u.password === password
-    );
-
-    if (!mockUser) {
-      throw new Error("Invalid credentials");
-    }
-
-    const user: User = {
-      id: crypto.randomUUID(),
-      email: mockUser.email,
-      name: mockUser.name,
-      role: mockUser.role,
-      specialization: mockUser.specialization,
-      licenseNumber: mockUser.licenseNumber,
-      patientId: mockUser.patientId,
+  try {
+    // Mock Doctor
+    const doctorId = uuidv4()
+    const mockDoctorData: Doctor = {
+      id: doctorId,
+      name: "Dr. Alice Smith",
+      email: "doctor@clinic.com",
+      password: "doctor123", // In a real app, hash this!
+      phone: "123-456-7890",
+      role: "doctor",
+      specialization: "General Medicine",
+      licenseNumber: "MD12345",
+      education: ["MD, University of Health", "Residency, City Hospital"],
+      experience: ["10 years as GP", "5 years in virtual care"],
       createdAt: new Date().toISOString(),
-    };
-
-    const localDB = getLocalDB();
-    await localDB.setCurrentUser(user);
-    this.currentUser = user;
-
-    // Create mock patient records if they don't exist
-    if (user.role === "patient") {
-      await this.createMockPatientRecord(user);
+      updatedAt: new Date().toISOString(),
+      synced: false,
     }
+    await localDB.addDoctor(mockDoctorData)
+    authService.updateMockUser(mockDoctorData) // Add to auth service's internal list
 
-    return user;
-  }
-
-  private async createMockPatientRecord(user: User): Promise<void> {
-    try {
-      const localDB = getLocalDB();
-      const patients = await localDB.getPatients();
-
-      // Check if patient record already exists
-      const existingPatient = patients.find((p) => p.email === user.email);
-      if (existingPatient) return;
-
-      // Create mock patient record
-      const mockPatientData = {
-        id: user.patientId ?? crypto.randomUUID(),
-        name: user.name,
-        email: user.email,
-        phone:
-          user.email === "patient@clinic.com" ? "+1-555-0123" : "+1-555-0124",
-        dateOfBirth:
-          user.email === "patient@clinic.com" ? "1990-05-15" : "1985-08-22",
-        gender:
-          user.email === "patient@clinic.com"
-            ? ("male" as const)
-            : ("female" as const),
-        address:
-          user.email === "patient@clinic.com"
-            ? "123 Main St, City, State 12345"
-            : "456 Oak Ave, City, State 12345",
-        emergencyContact: {
-          name: user.email === "patient@clinic.com" ? "Mary Doe" : "Bob Smith",
-          phone:
-            user.email === "patient@clinic.com" ? "+1-555-0199" : "+1-555-0188",
-          relationship:
-            user.email === "patient@clinic.com" ? "Spouse" : "Brother",
-        },
-        medicalHistory:
-          user.email === "patient@clinic.com"
-            ? "No significant medical history"
-            : "Hypertension, managed with medication",
-        allergies:
-          user.email === "patient@clinic.com"
-            ? ["Penicillin"]
-            : ["Shellfish", "Pollen"],
-        currentMedications:
-          user.email === "patient@clinic.com" ? [] : ["Lisinopril 10mg"],
-        bloodType: user.email === "patient@clinic.com" ? "O+" : "A-",
-        height: user.email === "patient@clinic.com" ? 175 : 165,
-        weight: user.email === "patient@clinic.com" ? 70 : 60,
-        assignedDoctorIds: [], // or provide default doctor IDs if needed
-      };
-
-      await localDB.addPatient(mockPatientData);
-
-      // Add some mock appointments and medical records
-      const patient = await localDB
-        .getPatients()
-        .then((patients) => patients.find((p) => p.email === user.email));
-
-      if (patient) {
-        // Add mock appointments
-        await localDB.addAppointment({
-          patientId: patient.id,
-          patientName: patient.name,
-          doctorId: "doctor-1",
-          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0], // Next week
-          time: "10:00",
-          type: "consultation",
-          status: "scheduled",
-          notes: "Regular checkup",
-        });
-
-        // Add mock medical record
-        await localDB.addMedicalRecord({
-          patientId: patient.id,
-          doctorId: "doctor-1",
-          date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0], // Last month
-          diagnosis:
-            user.email === "patient@clinic.com"
-              ? "Annual Physical Exam"
-              : "Hypertension Follow-up",
-          symptoms:
-            user.email === "patient@clinic.com" ? ["None"] : ["Mild headaches"],
-          treatment:
-            user.email === "patient@clinic.com"
-              ? "Continue healthy lifestyle"
-              : "Continue current medication",
-          prescription:
-            user.email === "patient@clinic.com"
-              ? []
-              : [
-                  {
-                    medication: "Lisinopril",
-                    dosage: "10mg",
-                    frequency: "Once daily",
-                    duration: "Ongoing",
-                  },
-                ],
-          vitals: {
-            bloodPressure:
-              user.email === "patient@clinic.com" ? "120/80" : "135/85",
-            heartRate: user.email === "patient@clinic.com" ? 72 : 78,
-            temperature: 36.5,
-            weight: user.email === "patient@clinic.com" ? 70 : 60,
-            height: user.email === "patient@clinic.com" ? 175 : 165,
-          },
-          notes:
-            user.email === "patient@clinic.com"
-              ? "Patient in good health"
-              : "Blood pressure well controlled",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to create mock patient record:", error);
+    // Mock Patient
+    const patientId = uuidv4()
+    const mockPatientData: Patient = {
+      id: patientId,
+      name: "Jane Doe",
+      email: "patient@clinic.com",
+      password: "patient123", // In a real app, hash this!
+      phone: "098-765-4321",
+      role: "patient",
+      dateOfBirth: "1990-05-15",
+      gender: "female",
+      address: "123 Main St, Anytown, USA",
+      emergencyContact: {
+        name: "John Doe",
+        phone: "098-111-2222",
+        relationship: "Husband",
+      },
+      medicalHistory: "Asthma, Childhood chickenpox",
+      allergies: ["Pollen", "Dust mites"],
+      currentMedications: ["Inhaler"],
+      bloodType: "A+",
+      height: 165,
+      weight: 60,
+      assignedDoctorIds: [doctorId], // Assign to Dr. Alice Smith
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      synced: false,
     }
-  }
+    await localDB.addPatient(mockPatientData)
+    authService.updateMockUser(mockPatientData) // Add to auth service's internal list
 
-  async logout(): Promise<void> {
-    if (typeof window === "undefined") return;
-
-    const localDB = getLocalDB();
-    await localDB.clearCurrentUser();
-    this.currentUser = null;
-  }
-
-  async getCurrentUser(): Promise<User | null> {
-    if (typeof window === "undefined") return null;
-
-    if (this.currentUser) {
-      return this.currentUser;
+    // Mock Appointment
+    const appointmentId = uuidv4()
+    const mockAppointmentData: Omit<Appointment, "id" | "createdAt" | "updatedAt" | "synced"> = {
+      patientId: patientId,
+      patientName: mockPatientData.name,
+      doctorId: doctorId,
+      date: "2025-08-01",
+      time: "10:00",
+      type: "consultation",
+      status: "scheduled",
+      notes: "Initial consultation for asthma review.",
     }
+    await localDB.addAppointment(mockAppointmentData)
 
-    const localDB = getLocalDB();
-    this.currentUser = await localDB.getCurrentUser();
-    return this.currentUser;
-  }
+    // Mock Medical Record
+    const medicalRecordId = uuidv4()
+    const mockMedicalRecordData: Omit<MedicalRecord, "id" | "createdAt" | "updatedAt" | "synced"> = {
+      patientId: patientId,
+      patientName: mockPatientData.name,
+      doctorId: doctorId,
+      date: "2025-07-20",
+      diagnosis: "Seasonal Allergies",
+      treatment: "Antihistamines, avoid triggers",
+      notes: "Patient reported sneezing and itchy eyes.",
+    }
+    await localDB.addMedicalRecord(mockMedicalRecordData)
 
-  async isAuthenticated(): Promise<boolean> {
-    const user = await this.getCurrentUser();
-    return user !== null;
+    console.log("Mock data initialized successfully.")
+  } catch (error) {
+    console.error("Error initializing mock data:", error)
   }
 }
 
-export const authService = AuthService.getInstance();
+export async function getMockUsers(): Promise<User[]> {
+  const users = await localDB.getAllUsers()
+  return users
+}
+
+export async function getMockDoctors(): Promise<User[]> {
+  const users = await localDB.getAllUsers()
+  return users.filter((user) => user.role === "doctor")
+}
+
+export async function getMockPatients(): Promise<User[]> {
+  const users = await localDB.getAllUsers()
+  return users.filter((user) => user.role === "patient")
+}
