@@ -9,15 +9,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import type { Appointment, Patient } from "@/lib/db"
+import type { Appointment, Patient, User } from "@/lib/db" // Import User type
 
 interface AppointmentFormProps {
   patients: Patient[]
   onSubmit: (appointment: Omit<Appointment, "id" | "createdAt" | "updatedAt" | "synced">) => Promise<void>
   onCancel: () => void
+  currentUser: User // Pass current user to assign doctor
 }
 
-export function AppointmentForm({ patients, onSubmit, onCancel }: AppointmentFormProps) {
+export function AppointmentForm({ patients, onSubmit, onCancel, currentUser }: AppointmentFormProps) {
   const [formData, setFormData] = useState({
     patientId: "",
     patientName: "",
@@ -26,6 +27,7 @@ export function AppointmentForm({ patients, onSubmit, onCancel }: AppointmentFor
     type: "consultation" as Appointment["type"],
     status: "scheduled" as Appointment["status"],
     notes: "",
+    doctorId: currentUser.id, // Auto-assign current doctor
   })
   const [loading, setLoading] = useState(false)
 
@@ -43,6 +45,7 @@ export function AppointmentForm({ patients, onSubmit, onCancel }: AppointmentFor
         type: "consultation",
         status: "scheduled",
         notes: "",
+        doctorId: currentUser.id,
       })
     } catch (error) {
       console.error("Failed to add appointment:", error)

@@ -4,31 +4,78 @@ export interface Patient {
   email: string;
   phone: string;
   dateOfBirth: string;
+  gender: "male" | "female" | "other";
+  address: string;
+  emergencyContact: {
+    name: string;
+    phone: string;
+    relationship: string;
+  };
   medicalHistory: string;
+  allergies: string[];
+  currentMedications: string[];
+  bloodType?: string;
+  height?: number; // in cm
+  weight?: number; // in kg
+  assignedDoctorIds: string[]; // NEW: Array of doctor IDs assigned to this patient
   createdAt: string;
   updatedAt: string;
-  synced: boolean;
+  synced: boolean; // Keep synced property for potential future server integration
 }
 
 export interface Appointment {
   id: string;
   patientId: string;
   patientName: string;
+  doctorId: string; // Ensure doctorId is always present
   date: string;
   time: string;
   type: "consultation" | "follow-up" | "emergency";
-  status: "scheduled" | "completed" | "cancelled";
+  status: "scheduled" | "completed" | "cancelled" | "requested"; // ADDED 'requested' status
   notes: string;
   createdAt: string;
   updatedAt: string;
   synced: boolean;
 }
 
+export interface MedicalRecord {
+  id: string;
+  patientId: string;
+  doctorId: string; // Ensure doctorId is always present
+  date: string;
+  diagnosis: string;
+  symptoms: string[];
+  treatment: string;
+  prescription: {
+    medication: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+  }[];
+  vitals: {
+    bloodPressure?: string;
+    heartRate?: number;
+    temperature?: number;
+    weight?: number;
+    height?: number;
+  };
+  notes: string;
+  followUpDate?: string;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+}
+
+// User interface for IndexedDB, matching AuthClientService's User
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: "doctor" | "nurse" | "admin";
+  role: "doctor" | "patient";
+  phone?: string;
+  specialization?: string; // for doctors
+  licenseNumber?: string; // for doctors
+  patientId?: string; // for patients - links to Patient record
   createdAt: string;
 }
 
@@ -62,6 +109,9 @@ class LocalDB {
           });
           patientsStore.createIndex("email", "email", { unique: true });
           patientsStore.createIndex("synced", "synced");
+          patientsStore.createIndex("assignedDoctorIds", "assignedDoctorIds", {
+            multiEntry: true,
+          }); // NEW INDEX
         }
 
         // Appointments store
@@ -70,16 +120,17 @@ class LocalDB {
             keyPath: "id",
           });
           appointmentsStore.createIndex("patientId", "patientId");
+          appointmentsStore.createIndex("doctorId", "doctorId"); // NEW INDEX
           appointmentsStore.createIndex("date", "date");
           appointmentsStore.createIndex("synced", "synced");
         }
 
-        // Users store
+        // Users store (for current logged-in user session)
         if (!db.objectStoreNames.contains("users")) {
           db.createObjectStore("users", { keyPath: "id" });
         }
 
-        // Sync queue store
+        // Sync queue store (no longer used for server sync, but can be kept for local "pending" actions)
         if (!db.objectStoreNames.contains("syncQueue")) {
           const syncStore = db.createObjectStore("syncQueue", {
             keyPath: "id",
@@ -87,41 +138,44 @@ class LocalDB {
           });
           syncStore.createIndex("timestamp", "timestamp");
         }
+
+        // Medical Records store
+        if (!db.objectStoreNames.contains("medicalRecords")) {
+          const recordsStore = db.createObjectStore("medicalRecords", {
+            keyPath: "id",
+          });
+          recordsStore.createIndex("patientId", "patientId");
+          recordsStore.createIndex("doctorId", "doctorId"); // NEW INDEX
+          recordsStore.createIndex("date", "date");
+          recordsStore.createIndex("synced", "synced");
+        }
       };
     });
   }
 
   async addPatient(
-    patient: Omit<Patient, "id" | "createdAt" | "updatedAt" | "synced">
+    patient: Omit<Patient, "createdAt" | "updatedAt" | "synced"> & {
+      id?: string;
+    }
   ): Promise<Patient> {
     if (!this.db) throw new Error("Database not initialized");
 
     const newPatient: Patient = {
       ...patient,
-      id: crypto.randomUUID(),
+      id: patient.id || crypto.randomUUID(), // Allow passing ID for mock patient creation
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      synced: false,
+      synced: true, // Always true for client-only mode
     };
 
-    const transaction = this.db.transaction(
-      ["patients", "syncQueue"],
-      "readwrite"
-    );
+    const transaction = this.db.transaction(["patients"], "readwrite");
     const patientsStore = transaction.objectStore("patients");
-    const syncStore = transaction.objectStore("syncQueue");
 
     await patientsStore.add(newPatient);
-    await syncStore.add({
-      type: "CREATE_PATIENT",
-      data: newPatient,
-      timestamp: Date.now(),
-    });
-
     return newPatient;
   }
 
-  async getPatients(): Promise<Patient[]> {
+  async getPatients(doctorId?: string): Promise<Patient[]> {
     if (!this.db) throw new Error("Database not initialized");
 
     const transaction = this.db.transaction(["patients"], "readonly");
@@ -129,9 +183,48 @@ class LocalDB {
 
     return new Promise((resolve, reject) => {
       const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        const patients = request.result;
+        if (doctorId) {
+          // Filter patients assigned to this doctor
+          resolve(
+            patients.filter((p) => p.assignedDoctorIds.includes(doctorId))
+          );
+        } else {
+          resolve(patients);
+        }
+      };
       request.onerror = () => reject(request.error);
     });
+  }
+
+  async getPatientById(patientId: string): Promise<Patient | null> {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const transaction = this.db.transaction(["patients"], "readonly");
+    const store = transaction.objectStore("patients");
+
+    return new Promise((resolve, reject) => {
+      const request = store.get(patientId);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updatePatient(patient: Patient): Promise<Patient> {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const transaction = this.db.transaction(["patients"], "readwrite");
+    const store = transaction.objectStore("patients");
+
+    const updatedPatient = {
+      ...patient,
+      updatedAt: new Date().toISOString(),
+      synced: true,
+    };
+
+    await store.put(updatedPatient);
+    return updatedPatient;
   }
 
   async addAppointment(
@@ -144,27 +237,20 @@ class LocalDB {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      synced: false,
+      synced: true, // Always true for client-only mode
     };
 
-    const transaction = this.db.transaction(
-      ["appointments", "syncQueue"],
-      "readwrite"
-    );
+    const transaction = this.db.transaction(["appointments"], "readwrite");
     const appointmentsStore = transaction.objectStore("appointments");
-    const syncStore = transaction.objectStore("syncQueue");
 
     await appointmentsStore.add(newAppointment);
-    await syncStore.add({
-      type: "CREATE_APPOINTMENT",
-      data: newAppointment,
-      timestamp: Date.now(),
-    });
-
     return newAppointment;
   }
 
-  async getAppointments(): Promise<Appointment[]> {
+  async getAppointments(
+    patientId?: string,
+    doctorId?: string
+  ): Promise<Appointment[]> {
     if (!this.db) throw new Error("Database not initialized");
 
     const transaction = this.db.transaction(["appointments"], "readonly");
@@ -172,7 +258,20 @@ class LocalDB {
 
     return new Promise((resolve, reject) => {
       const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        let appointments = request.result;
+        if (patientId) {
+          appointments = appointments.filter(
+            (apt) => apt.patientId === patientId
+          );
+        }
+        if (doctorId) {
+          appointments = appointments.filter(
+            (apt) => apt.doctorId === doctorId
+          );
+        }
+        resolve(appointments);
+      };
       request.onerror = () => reject(request.error);
     });
   }
@@ -184,12 +283,8 @@ class LocalDB {
   ): Promise<void> {
     if (!this.db) throw new Error("Database not initialized");
 
-    const transaction = this.db.transaction(
-      ["appointments", "syncQueue"],
-      "readwrite"
-    );
+    const transaction = this.db.transaction(["appointments"], "readwrite");
     const appointmentsStore = transaction.objectStore("appointments");
-    const syncStore = transaction.objectStore("syncQueue");
 
     const appointment = await new Promise<Appointment>((resolve, reject) => {
       const request = appointmentsStore.get(id);
@@ -200,15 +295,10 @@ class LocalDB {
     if (appointment) {
       appointment.status = status;
       appointment.updatedAt = new Date().toISOString();
-      appointment.synced = false;
+      appointment.synced = true; // Always true for client-only mode
       if (notes) appointment.notes = notes;
 
       await appointmentsStore.put(appointment);
-      await syncStore.add({
-        type: "UPDATE_APPOINTMENT",
-        data: appointment,
-        timestamp: Date.now(),
-      });
     }
   }
 
@@ -247,6 +337,52 @@ class LocalDB {
     await store.clear();
   }
 
+  async addMedicalRecord(
+    record: Omit<MedicalRecord, "id" | "createdAt" | "updatedAt" | "synced">
+  ): Promise<MedicalRecord> {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const newRecord: MedicalRecord = {
+      ...record,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      synced: true, // Always true for client-only mode
+    };
+
+    const transaction = this.db.transaction(["medicalRecords"], "readwrite");
+    const recordsStore = transaction.objectStore("medicalRecords");
+
+    await recordsStore.add(newRecord);
+    return newRecord;
+  }
+
+  async getMedicalRecords(
+    patientId?: string,
+    doctorId?: string
+  ): Promise<MedicalRecord[]> {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const transaction = this.db.transaction(["medicalRecords"], "readonly");
+    const store = transaction.objectStore("medicalRecords");
+
+    return new Promise((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () => {
+        let records = request.result;
+        if (patientId) {
+          records = records.filter((record) => record.patientId === patientId);
+        }
+        if (doctorId) {
+          records = records.filter((record) => record.doctorId === doctorId);
+        }
+        resolve(records);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Sync queue methods are no longer relevant for server sync, but can be kept if needed for local "pending" states
   async getSyncQueue(): Promise<any[]> {
     if (!this.db) throw new Error("Database not initialized");
 
@@ -284,7 +420,7 @@ export const getLocalDB = (): LocalDB => {
   return localDBInstance;
 };
 
-// For backward compatibility
+// For backward compatibility (if any components still use localDB directly)
 export const localDB = {
   init: () => {
     if (typeof window === "undefined")
@@ -292,20 +428,28 @@ export const localDB = {
     return getLocalDB().init();
   },
   addPatient: (
-    patient: Omit<Patient, "id" | "createdAt" | "updatedAt" | "synced">
+    patient: Omit<Patient, "createdAt" | "updatedAt" | "synced"> & {
+      id?: string;
+    }
   ) => {
     return getLocalDB().addPatient(patient);
   },
-  getPatients: () => {
-    return getLocalDB().getPatients();
+  getPatients: (doctorId?: string) => {
+    return getLocalDB().getPatients(doctorId);
+  },
+  getPatientById: (patientId: string) => {
+    return getLocalDB().getPatientById(patientId);
+  },
+  updatePatient: (patient: Patient) => {
+    return getLocalDB().updatePatient(patient);
   },
   addAppointment: (
     appointment: Omit<Appointment, "id" | "createdAt" | "updatedAt" | "synced">
   ) => {
     return getLocalDB().addAppointment(appointment);
   },
-  getAppointments: () => {
-    return getLocalDB().getAppointments();
+  getAppointments: (patientId?: string, doctorId?: string) => {
+    return getLocalDB().getAppointments(patientId, doctorId);
   },
   updateAppointmentStatus: (
     id: string,
@@ -328,5 +472,13 @@ export const localDB = {
   },
   clearSyncQueue: () => {
     return getLocalDB().clearSyncQueue();
+  },
+  addMedicalRecord: (
+    record: Omit<MedicalRecord, "id" | "createdAt" | "updatedAt" | "synced">
+  ) => {
+    return getLocalDB().addMedicalRecord(record);
+  },
+  getMedicalRecords: (patientId?: string, doctorId?: string) => {
+    return getLocalDB().getMedicalRecords(patientId, doctorId);
   },
 };
