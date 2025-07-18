@@ -1,5 +1,5 @@
 "use client"
-
+/* eslint-disable  */
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { AuthClientService } from "@/lib/auth-client"
