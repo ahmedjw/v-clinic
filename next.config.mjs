@@ -1,8 +1,8 @@
-import path from "path-browserify";
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export",
+  reactStrictMode: true,
+  swcMinify: true,
+  output: "standalone", // For Vercel deployment optimization
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -10,16 +10,13 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "api.dicebear.com",
+      },
+    ],
     unoptimized: true,
-  },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        path: path,
-      };
-    }
-    return config;
   },
 };
 

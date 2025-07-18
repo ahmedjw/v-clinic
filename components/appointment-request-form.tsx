@@ -1,199 +1,183 @@
 "use client"
-import { useState, useEffect } from "react"
+
 import type React from "react"
 
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import type { Appointment, Doctor, User } from "@/lib/db"
-import { getLocalDB } from "@/lib/db"
 import { AuthClientService } from "@/lib/auth-client"
-import { useToast } from "@/hooks/use-toast"
+import type { Appointment, Doctor, Patient } from "@/lib/db"
+import { useToast } from "@/components/ui/use-toast"
 
 interface AppointmentRequestFormProps {
-  patientId: string
+  patientId?: string // Optional if doctor is creating for a specific patient
+  doctorId?: string // Optional if patient is requesting for a specific doctor
   onSave: (appointment: Appointment) => void
   onCancel: () => void
+  doctors: Doctor[] // Pass doctors from parent
+  patients?: Patient[] // Pass patients from parent if doctor is creating
 }
 
-export function AppointmentRequestForm({ patientId, onSave, onCancel }: AppointmentRequestFormProps) {
-  const [formData, setFormData] = useState<
-    Omit<Appointment, "id" | "createdAt" | "updatedAt" | "synced" | "patientName">
-  >({
-    patientId: patientId,
-    doctorId: "",
-    date: "",
-    time: "",
-    type: "consultation",
-    status: "pending", // Requests start as pending
-    notes: "",
-  })
-  const [doctors, setDoctors] = useState<User[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+export function AppointmentRequestForm({
+  patientId: initialPatientId,
+  doctorId: initialDoctorId,
+  onSave,
+  onCancel,
+  doctors,
+  patients,
+}: AppointmentRequestFormProps) {
+  const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId || "")
+  const [selectedDoctorId, setSelectedDoctorId] = useState(initialDoctorId || "")
+  const [date, setDate] = useState("")
+  const [time, setTime] = useState("")
+  const [reason, setReason] = useState("")
+  const [loading, setLoading] = useState(false)
   const { toast } = useToast()
-  const authService = new AuthClientService()
 
   useEffect(() => {
-    const loadDoctors = async () => {
-      try {
-        const allDoctors = authService.getMockDoctors()
-        setDoctors(allDoctors)
-      } catch (err) {
-        console.error("Failed to load doctors:", err)
-        setError("Failed to load doctor information.")
-      } finally {
-        setLoading(false)
-      }
+    if (doctors.length > 0 && !selectedDoctorId) {
+      setSelectedDoctorId(doctors[0].id)
     }
-    loadDoctors()
-  }, [])
-
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
+    if (patients && patients.length > 0 && !selectedPatientId) {
+      setSelectedPatientId(patients[0].id)
+    }
+  }, [doctors, patients, selectedDoctorId, selectedPatientId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
+    setLoading(true)
 
-    if (!formData.doctorId || !formData.date || !formData.time || !formData.type) {
-      setError("Please fill in all required fields.")
+    if (!selectedPatientId || !selectedDoctorId || !date || !time || !reason) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      })
+      setLoading(false)
+      return
+    }
+
+    const patient =
+      patients?.find((p) => p.id === selectedPatientId) ||
+      ((await AuthClientService.getUserById(selectedPatientId)) as Patient)
+    const doctor =
+      doctors.find((d) => d.id === selectedDoctorId) ||
+      ((await AuthClientService.getUserById(selectedDoctorId)) as Doctor)
+
+    if (!patient || !doctor) {
+      toast({
+        title: "Error",
+        description: "Patient or Doctor not found.",
+        variant: "destructive",
+      })
+      setLoading(false)
       return
     }
 
     try {
-      const localDB = getLocalDB()
-      const patient = await localDB.getPatientById(patientId)
-      if (!patient) {
-        setError("Patient not found.")
-        return
+      const newAppointment: Omit<Appointment, "id"> = {
+        patientId: patient.id,
+        doctorId: doctor.id,
+        patientName: patient.name,
+        doctorName: doctor.name,
+        patientEmail: patient.email,
+        date,
+        time,
+        reason,
+        status: "pending", // Initial status
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        synced: false,
       }
 
-      const newAppointment: Omit<Appointment, "id" | "createdAt" | "updatedAt" | "synced"> = {
-        ...formData,
-        patientName: patient.name, // Add patientName from fetched patient
-      }
-
-      const savedAppointment = await localDB.addAppointment(newAppointment)
+      const createdAppointment = await AuthClientService.addAppointment(newAppointment)
+      onSave(createdAppointment)
       toast({
-        title: "Appointment Request Sent",
-        description: `Your request for ${patient.name} on ${formData.date} at ${formData.time} has been sent.`,
+        title: "Appointment Created!",
+        description: "The appointment has been successfully scheduled.",
       })
-      onSave(savedAppointment)
-    } catch (err) {
-      console.error("Failed to send appointment request:", err)
-      setError("Failed to send appointment request. Please try again.")
+    } catch (error) {
+      console.error("Failed to create appointment:", error)
       toast({
         title: "Error",
-        description: "Failed to send appointment request.",
+        description: "Failed to create appointment. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setLoading(false)
     }
   }
 
-  if (loading) {
-    return (
-      <Card className="w-full max-w-2xl mx-auto">
-        <CardHeader>
-          <CardTitle>Request New Appointment</CardTitle>
-        </CardHeader>
-        <CardContent className="flex justify-center items-center h-40">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>Request New Appointment</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+    <form onSubmit={handleSubmit} className="space-y-4 p-4">
+      {patients && (
+        <div className="space-y-2">
+          <Label htmlFor="patient">Patient</Label>
+          <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
+            <SelectTrigger id="patient">
+              <SelectValue placeholder="Select a patient" />
+            </SelectTrigger>
+            <SelectContent>
+              {patients.map((pat) => (
+                <SelectItem key={pat.id} value={pat.id}>
+                  {pat.name} ({pat.email})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
-          <div className="space-y-2">
-            <Label htmlFor="doctorId">Doctor</Label>
-            <Select value={formData.doctorId} onValueChange={(value) => handleChange("doctorId", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Doctor" />
-              </SelectTrigger>
-              <SelectContent>
-                {doctors.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name} ({(d as Doctor).specialization})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="space-y-2">
+        <Label htmlFor="doctor">Doctor</Label>
+        <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId}>
+          <SelectTrigger id="doctor">
+            <SelectValue placeholder="Select a doctor" />
+          </SelectTrigger>
+          <SelectContent>
+            {doctors.map((doc) => (
+              <SelectItem key={doc.id} value={doc.id}>
+                {doc.name} ({doc.specialty})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="date">Preferred Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => handleChange("date", e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="time">Preferred Time</Label>
-              <Input
-                id="time"
-                type="time"
-                value={formData.time}
-                onChange={(e) => handleChange("time", e.target.value)}
-                required
-              />
-            </div>
-          </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="date">Date</Label>
+          <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="time">Time</Label>
+          <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+        </div>
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="type">Appointment Type</Label>
-            <Select value={formData.type} onValueChange={(value) => handleChange("type", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="consultation">Consultation</SelectItem>
-                <SelectItem value="follow-up">Follow-up</SelectItem>
-                <SelectItem value="checkup">Check-up</SelectItem>
-                <SelectItem value="emergency">Emergency</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="space-y-2">
+        <Label htmlFor="reason">Reason for Appointment</Label>
+        <Textarea
+          id="reason"
+          placeholder="Briefly describe the reason for the appointment..."
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          required
+        />
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Reason for Appointment</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleChange("notes", e.target.value)}
-              placeholder="Briefly describe your reason for the appointment..."
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button type="submit">Send Request</Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Saving..." : "Create Appointment"}
+        </Button>
+      </div>
+    </form>
   )
 }

@@ -1,44 +1,58 @@
 "use client"
 
 import { RegisterForm } from "@/components/register-form"
+import { PWAInstaller } from "@/components/pwa-installer"
+import { SyncStatus } from "@/components/sync-status"
 import { useRouter } from "next/navigation"
 import { AuthClientService } from "@/lib/auth-client"
 import { useEffect, useState } from "react"
-import type { User } from "@/lib/db"
+import { Spinner } from "@/components/ui/spinner"
 
 export default function RegisterPage() {
   const router = useRouter()
-  const authService = new AuthClientService()
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const isAuthenticated = await authService.isAuthenticated()
+    const checkAuthAndRedirect = async () => {
+      const isAuthenticated = await AuthClientService.isAuthenticated()
       if (isAuthenticated) {
-        router.replace("/") // Redirect to home if already logged in
-      } else {
-        setLoading(false)
+        router.replace("/") // Redirect to home if already authenticated
       }
     }
-    checkAuth()
+    checkAuthAndRedirect()
   }, [router])
 
-  const handleRegister = (user: User) => {
-    // On successful registration, redirect to the home page
-    router.push("/")
+  const handleRegisterSuccess = () => {
+    router.replace("/") // Redirect to home on successful registration
   }
 
   const handleSwitchToLogin = () => {
     router.push("/login")
   }
 
+  // Render a loading state while checking authentication
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    AuthClientService.isAuthenticated().then((isAuthenticated) => {
+      if (!isAuthenticated) {
+        setLoading(false)
+      }
+    })
+  }, [])
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <Spinner />
+        <p className="ml-2">Checking session...</p>
       </div>
     )
   }
 
-  return <RegisterForm onRegister={handleRegister} onSwitchToLogin={handleSwitchToLogin} />
+  return (
+    <div className="relative min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+      <PWAInstaller />
+      <SyncStatus />
+      <RegisterForm onRegister={handleRegisterSuccess} onSwitchToLogin={handleSwitchToLogin} />
+    </div>
+  )
 }

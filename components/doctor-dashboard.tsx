@@ -1,308 +1,259 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react"
+import { AuthClientService } from "@/lib/auth-client"
+import type { Appointment, Doctor, MedicalRecord, Patient } from "@/lib/db"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { PlusCircle, Calendar, Users, FileText, MessageSquare, Settings, LogOut, Search } from "lucide-react"
-import type { Appointment, Patient, MedicalRecord, User } from "@/lib/db"
-import { getLocalDB } from "@/lib/db"
-import { AppointmentForm } from "@/components/appointment-form"
-import { PatientForm } from "@/components/patient-form"
+import { PlusCircle, Settings, LogOut, Share2 } from "lucide-react"
+import { AppointmentRequestForm } from "@/components/appointment-request-form"
 import { MedicalRecordForm } from "@/components/medical-record-form"
-import { PatientProfileModal } from "@/components/patient-profile-modal"
-import { DoctorProfileModal } from "@/components/doctor-profile-modal"
-import { UserSettingsForm } from "@/components/user-settings-form"
-import { AuthClientService } from "@/lib/auth-client"
-import { useRouter } from "next/navigation"
-import { MockChat } from "@/components/mock-chat"
-import { SyncStatus } from "@/components/sync-status"
-import { useToast } from "@/hooks/use-toast"
 import { ShareAppointmentModal } from "@/components/share-appointment-modal"
-import { Input } from "@/components/ui/input"
+import { useToast } from "@/components/ui/use-toast"
+import { DoctorProfileModal } from "./doctor-profile-modal"
+import { MockChat } from "./mock-chat"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useRouter } from "next/navigation"
+import { UserSettingsForm } from "./user-settings-form"
 
 interface DoctorDashboardProps {
-  doctor: User
+  doctor: Doctor
 }
 
 export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
   const [activeTab, setActiveTab] = useState("appointments")
   const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [patients, setPatients] = useState<Patient[]>([])
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([])
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [formType, setFormType] = useState<"appointment" | "patient" | "medicalRecord" | null>(null)
-  const [editingData, setEditingData] = useState<any>(null)
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
-  const [isDoctorProfileModalOpen, setIsDoctorProfileModalOpen] = useState(false)
-  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false)
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [isAppointmentFormOpen, setIsAppointmentFormOpen] = useState(false)
+  const [isMedicalRecordFormOpen, setIsMedicalRecordFormOpen] = useState(false)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
-  const [appointmentToShare, setAppointmentToShare] = useState<Appointment | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
-
-  const router = useRouter()
-  const authService = new AuthClientService()
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false)
   const { toast } = useToast()
-
-  const loadData = async () => {
-    const localDB = getLocalDB()
-    const allAppointments = await localDB.getAllAppointments()
-    const allPatients = await localDB.getAllPatients()
-    const allMedicalRecords = await localDB.getAllMedicalRecords()
-
-    // Filter appointments and medical records relevant to this doctor
-    const doctorAppointments = allAppointments.filter((apt) => apt.doctorId === doctor.id || apt.status === "pending")
-    const doctorMedicalRecords = allMedicalRecords.filter((rec) => rec.doctorId === doctor.id)
-
-    setAppointments(doctorAppointments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
-    setPatients(allPatients.sort((a, b) => a.name.localeCompare(b.name)))
-    setMedicalRecords(doctorMedicalRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
-  }
+  const router = useRouter()
 
   useEffect(() => {
-    loadData()
+    const fetchDoctorData = async () => {
+      const fetchedAppointments = await AuthClientService.getAppointmentsForDoctor(doctor.id)
+      setAppointments(fetchedAppointments)
+      const fetchedRecords = await AuthClientService.getMedicalRecordsForDoctor(doctor.id)
+      setMedicalRecords(fetchedRecords)
+      const fetchedPatients = await AuthClientService.getMockPatients()
+      setPatients(fetchedPatients)
+    }
+    fetchDoctorData()
+
+    const handleAppointmentUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<Appointment>
+      if (customEvent.detail.doctorId === doctor.id) {
+        setAppointments((prev) => {
+          const existingIndex = prev.findIndex((app) => app.id === customEvent.detail.id)
+          if (existingIndex > -1) {
+            return prev.map((app, idx) => (idx === existingIndex ? customEvent.detail : app))
+          }
+          return [...prev, customEvent.detail]
+        })
+      }
+    }
+
+    const handleMedicalRecordUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<MedicalRecord>
+      if (customEvent.detail.doctorId === doctor.id) {
+        setMedicalRecords((prev) => {
+          const existingIndex = prev.findIndex((rec) => rec.id === customEvent.detail.id)
+          if (existingIndex > -1) {
+            return prev.map((rec, idx) => (idx === existingIndex ? customEvent.detail : rec))
+          }
+          return [...prev, customEvent.detail]
+        })
+      }
+    }
+
+    window.addEventListener("appointmentUpdated", handleAppointmentUpdate as EventListener)
+    window.addEventListener("medicalRecordUpdated", handleMedicalRecordUpdate as EventListener)
+
+    return () => {
+      window.removeEventListener("appointmentUpdated", handleAppointmentUpdate as EventListener)
+      window.removeEventListener("medicalRecordUpdated", handleMedicalRecordUpdate as EventListener)
+    }
   }, [doctor.id])
 
-  const handleOpenForm = (type: "appointment" | "patient" | "medicalRecord", data: any = null) => {
-    setFormType(type)
-    setEditingData(data)
-    setIsFormOpen(true)
+  const handleAppointmentSave = async (appointment: Appointment) => {
+    setIsAppointmentFormOpen(false)
+    const updatedAppointments = await AuthClientService.getAppointmentsForDoctor(doctor.id)
+    setAppointments(updatedAppointments)
   }
 
-  const handleCloseForm = () => {
-    setIsFormOpen(false)
-    setEditingData(null)
-    setFormType(null)
-    loadData() // Reload data after form submission/cancellation
+  const handleMedicalRecordSave = async (record: MedicalRecord) => {
+    setIsMedicalRecordFormOpen(false)
+    const updatedRecords = await AuthClientService.getMedicalRecordsForDoctor(doctor.id)
+    setMedicalRecords(updatedRecords)
   }
 
-  const handleViewPatientProfile = (patient: Patient) => {
-    setSelectedPatient(patient)
-  }
-
-  const handleClosePatientProfile = () => {
-    setSelectedPatient(null)
+  const handleUpdateAppointmentStatus = async (appointmentId: string, status: Appointment["status"]) => {
+    try {
+      const updatedAppointment = await AuthClientService.updateAppointmentStatus(appointmentId, status)
+      setAppointments((prev) => prev.map((app) => (app.id === updatedAppointment.id ? updatedAppointment : app)))
+      toast({
+        title: "Appointment Updated",
+        description: `Appointment status changed to ${status}.`,
+      })
+    } catch (error) {
+      console.error("Failed to update appointment status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update appointment status. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleLogout = async () => {
-    await authService.logout()
+    await AuthClientService.logout()
     router.push("/login")
+  }
+
+  const handleUserSettingsSave = (updatedUser: Doctor) => {
+    // Update the local doctor state if needed, or rely on re-fetch if complex
+    // For simplicity, we'll just close the modal and assume the data is updated in AuthClientService
+    setIsUserSettingsOpen(false)
     toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
+      title: "Profile Updated",
+      description: "Your doctor profile has been successfully updated.",
     })
   }
 
-  const handleShareAppointment = (appointment: Appointment) => {
-    setAppointmentToShare(appointment)
-    setIsShareModalOpen(true)
-  }
-
-  const handleCloseShareModal = () => {
-    setIsShareModalOpen(false)
-    setAppointmentToShare(null)
-  }
-
-  const filteredAppointments = appointments.filter(
-    (apt) =>
-      apt.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      apt.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      apt.status.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
-
-  const filteredPatients = patients.filter(
-    (patient) =>
-      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.phone.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
-
-  const filteredMedicalRecords = medicalRecords.filter(
-    (record) =>
-      record.diagnosis.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.treatment.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.patientName.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
-
   return (
-    <div className="min-h-screen flex flex-col bg-gray-100">
-      <header className="bg-white shadow-sm p-4 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-blue-700">Virtual Clinic - Doctor Dashboard</h1>
-        <div className="flex items-center gap-4">
-          <SyncStatus />
-          <Button variant="outline" onClick={() => setIsUserSettingsOpen(true)}>
-            <Settings className="h-4 w-4 mr-2" /> Settings
+    <div className="min-h-screen bg-gray-100 p-4">
+      <header className="flex items-center justify-between bg-white p-4 shadow-sm rounded-lg mb-4">
+        <h1 className="text-2xl font-bold">Welcome, Dr. {doctor.name}</h1>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" onClick={() => setIsShareModalOpen(true)}>
+            <Share2 className="mr-2 h-4 w-4" /> Share Profile
           </Button>
-          <Button variant="destructive" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" /> Logout
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setIsProfileModalOpen(true)}>View Profile</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsUserSettingsOpen(true)}>Edit Settings</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" /> Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
-      <main className="flex-1 p-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <TabsList className="grid w-full md:w-auto grid-cols-2 sm:grid-cols-4 lg:grid-cols-5">
-              <TabsTrigger value="appointments" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" /> Appointments
-              </TabsTrigger>
-              <TabsTrigger value="patients" className="flex items-center gap-2">
-                <Users className="h-4 w-4" /> Patients
-              </TabsTrigger>
-              <TabsTrigger value="medicalRecords" className="flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Records
-              </TabsTrigger>
-              <TabsTrigger value="chat" className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" /> Chat
-              </TabsTrigger>
-            </TabsList>
-            <div className="flex w-full md:w-auto gap-2">
-              <div className="relative w-full md:w-auto">
-                <Input
-                  placeholder="Search..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-              </div>
-              <Button onClick={() => handleOpenForm("appointment")}>
-                <PlusCircle className="h-4 w-4 mr-2" /> Add Appointment
-              </Button>
-            </div>
-          </div>
+      <Tabs defaultValue="appointments" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="appointments">Appointments</TabsTrigger>
+          <TabsTrigger value="records">Medical Records</TabsTrigger>
+          <TabsTrigger value="patients">My Patients</TabsTrigger>
+          <TabsTrigger value="chat">Chat</TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="appointments">
-            <Card>
-              <CardHeader>
-                <CardTitle>Upcoming Appointments</CardTitle>
-              </CardHeader>
-              <CardContent>
+        <TabsContent value="appointments" className="mt-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle>Upcoming Appointments</CardTitle>
+              <Button onClick={() => setIsAppointmentFormOpen(true)} size="sm">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Appointment
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {appointments.length === 0 ? (
+                <p>No appointments scheduled.</p>
+              ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Patient</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Time</TableHead>
-                      <TableHead>Type</TableHead>
+                      <TableHead>Reason</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAppointments.length > 0 ? (
-                      filteredAppointments.map((apt) => (
-                        <TableRow key={apt.id}>
-                          <TableCell className="font-medium">{apt.patientName}</TableCell>
-                          <TableCell>{new Date(apt.date).toLocaleDateString()}</TableCell>
-                          <TableCell>{apt.time}</TableCell>
-                          <TableCell>{apt.type}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                apt.status === "scheduled"
+                    {appointments.map((app) => (
+                      <TableRow key={app.id}>
+                        <TableCell className="font-medium">{app.patientName}</TableCell>
+                        <TableCell>{app.date}</TableCell>
+                        <TableCell>{app.time}</TableCell>
+                        <TableCell>{app.reason}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              app.status === "pending"
+                                ? "secondary"
+                                : app.status === "confirmed"
                                   ? "default"
-                                  : apt.status === "pending"
-                                    ? "secondary"
-                                    : "outline"
-                              }
-                            >
-                              {apt.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
+                                  : "outline"
+                            }
+                          >
+                            {app.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {app.status === "pending" && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="mr-2 bg-transparent"
-                              onClick={() => handleOpenForm("appointment", apt)}
+                              onClick={() => handleUpdateAppointmentStatus(app.id, "confirmed")}
                             >
-                              Edit
+                              Confirm
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleShareAppointment(apt)}>
-                              Share
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-gray-500">
-                          No appointments found.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="patients">
-            <Card>
-              <CardHeader className="flex flex-row justify-between items-center">
-                <CardTitle>Patient List</CardTitle>
-                <Button onClick={() => handleOpenForm("patient")}>
-                  <PlusCircle className="h-4 w-4 mr-2" /> Add Patient
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredPatients.length > 0 ? (
-                      filteredPatients.map((patient) => (
-                        <TableRow key={patient.id}>
-                          <TableCell className="font-medium">{patient.name}</TableCell>
-                          <TableCell>{patient.email}</TableCell>
-                          <TableCell>{patient.phone}</TableCell>
-                          <TableCell className="text-right">
+                          )}
+                          {app.status === "confirmed" && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="mr-2 bg-transparent"
-                              onClick={() => handleViewPatientProfile(patient)}
+                              onClick={() => handleUpdateAppointmentStatus(app.id, "completed")}
                             >
-                              View Profile
+                              Complete
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleOpenForm("patient", patient)}>
-                              Edit
+                          )}
+                          {(app.status === "pending" || app.status === "confirmed") && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="ml-2"
+                              onClick={() => handleUpdateAppointmentStatus(app.id, "cancelled")}
+                            >
+                              Cancel
                             </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-gray-500">
-                          No patients found.
+                          )}
                         </TableCell>
                       </TableRow>
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <TabsContent value="medicalRecords">
-            <Card>
-              <CardHeader className="flex flex-row justify-between items-center">
-                <CardTitle>Medical Records</CardTitle>
-                <Button onClick={() => handleOpenForm("medicalRecord")}>
-                  <PlusCircle className="h-4 w-4 mr-2" /> Add Record
-                </Button>
-              </CardHeader>
-              <CardContent>
+        <TabsContent value="records" className="mt-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle>Patient Medical Records</CardTitle>
+              <Button onClick={() => setIsMedicalRecordFormOpen(true)} size="sm">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Record
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {medicalRecords.length === 0 ? (
+                <p>No medical records found.</p>
+              ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -310,88 +261,106 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
                       <TableHead>Date</TableHead>
                       <TableHead>Diagnosis</TableHead>
                       <TableHead>Treatment</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>Notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMedicalRecords.length > 0 ? (
-                      filteredMedicalRecords.map((record) => (
-                        <TableRow key={record.id}>
-                          <TableCell className="font-medium">{record.patientName}</TableCell>
-                          <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
-                          <TableCell>{record.diagnosis}</TableCell>
-                          <TableCell>{record.treatment}</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="outline" size="sm" onClick={() => handleOpenForm("medicalRecord", record)}>
-                              Edit
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-gray-500">
-                          No medical records found.
-                        </TableCell>
+                    {medicalRecords.map((rec) => (
+                      <TableRow key={rec.id}>
+                        <TableCell className="font-medium">{rec.patientName}</TableCell>
+                        <TableCell>{new Date(rec.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{rec.diagnosis}</TableCell>
+                        <TableCell>{rec.treatment}</TableCell>
+                        <TableCell>{rec.notes}</TableCell>
                       </TableRow>
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <TabsContent value="chat">
-            <Card>
-              <CardHeader>
-                <CardTitle>Mock Chat Interface</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MockChat currentUser={doctor} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </main>
+        <TabsContent value="patients" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>My Patients</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {patients.length === 0 ? (
+                <p>No patients registered yet.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Address</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {patients.map((pat) => (
+                      <TableRow key={pat.id}>
+                        <TableCell className="font-medium">{pat.name}</TableCell>
+                        <TableCell>{pat.email}</TableCell>
+                        <TableCell>{pat.phone}</TableCell>
+                        <TableCell>{pat.address}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {isFormOpen && formType === "appointment" && (
+        <TabsContent value="chat" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Patient Chat</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MockChat currentUserRole="doctor" />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {isAppointmentFormOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <AppointmentForm initialData={editingData} onSave={handleCloseForm} onCancel={handleCloseForm} />
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+            <h2 className="text-2xl font-bold mb-4">Add New Appointment</h2>
+            <AppointmentRequestForm
+              doctorId={doctor.id}
+              onSave={handleAppointmentSave}
+              onCancel={() => setIsAppointmentFormOpen(false)}
+              doctors={[doctor]} // Doctor is creating, so only their own profile is relevant
+              patients={patients} // Pass all patients for selection
+            />
+          </div>
         </div>
       )}
-      {isFormOpen && formType === "patient" && (
+
+      {isMedicalRecordFormOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <PatientForm initialData={editingData} onSave={handleCloseForm} onCancel={handleCloseForm} />
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+            <h2 className="text-2xl font-bold mb-4">Add New Medical Record</h2>
+            <MedicalRecordForm
+              doctorId={doctor.id}
+              onSave={handleMedicalRecordSave}
+              onCancel={() => setIsMedicalRecordFormOpen(false)}
+              patients={patients} // Pass all patients for selection
+            />
+          </div>
         </div>
       )}
-      {isFormOpen && formType === "medicalRecord" && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <MedicalRecordForm
-            initialData={editingData}
-            onSave={handleCloseForm}
-            onCancel={handleCloseForm}
-            doctorId={doctor.id}
-          />
-        </div>
-      )}
 
-      {selectedPatient && <PatientProfileModal patient={selectedPatient} onClose={handleClosePatientProfile} />}
+      <ShareAppointmentModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} doctor={doctor} />
 
-      {isDoctorProfileModalOpen && (
-        <DoctorProfileModal doctor={doctor} onClose={() => setIsDoctorProfileModalOpen(false)} />
-      )}
+      <DoctorProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} doctor={doctor} />
 
-      {isUserSettingsOpen && (
-        <UserSettingsForm user={doctor} onClose={() => setIsUserSettingsOpen(false)} onSave={loadData} />
-      )}
-
-      {isShareModalOpen && appointmentToShare && (
-        <ShareAppointmentModal
-          appointment={appointmentToShare}
-          patient={patients.find((p) => p.id === appointmentToShare.patientId)}
-          onClose={handleCloseShareModal}
-        />
-      )}
+      {isUserSettingsOpen && <UserSettingsForm user={doctor} onSave={handleUserSettingsSave} />}
     </div>
   )
 }

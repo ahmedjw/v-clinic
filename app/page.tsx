@@ -1,23 +1,23 @@
-/*eslint-disable*/
-
 "use client"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AuthClientService } from "@/lib/auth-client"
 import { DoctorDashboard } from "@/components/doctor-dashboard"
 import { PatientDashboard } from "@/components/patient-dashboard"
-import { AuthGuard } from "@/components/auth-guard"
-import type { User } from "@/lib/db"
+import { Spinner } from "@/components/ui/spinner"
+import type { User, Patient, Doctor } from "@/lib/db"
+import { PWAInstaller } from "@/components/pwa-installer"
+import { SyncStatus } from "@/components/sync-status"
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const authService = new AuthClientService()
 
   useEffect(() => {
     const checkAuth = async () => {
-      const currentUser = await authService.getCurrentUser()
+      const currentUser = await AuthClientService.getCurrentUser()
       if (currentUser) {
         setUser(currentUser)
       } else {
@@ -31,19 +31,27 @@ export default function HomePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <Spinner />
+        <p className="ml-2">Loading user session...</p>
       </div>
     )
   }
 
   if (!user) {
-    // Should be redirected by AuthGuard or useEffect, but as a fallback
+    // This case should ideally be handled by the router.replace('/login')
+    // but as a fallback, we can render nothing or a redirect message.
     return null
   }
 
   return (
-    <AuthGuard>
-      {user.role === "doctor" ? <DoctorDashboard doctor={user} /> : <PatientDashboard patient={user} />}
-    </AuthGuard>
+    <div className="relative min-h-screen bg-gray-100 dark:bg-gray-900">
+      <PWAInstaller />
+      <SyncStatus />
+      {user.role === "doctor" ? (
+        <DoctorDashboard doctor={user as Doctor} />
+      ) : (
+        <PatientDashboard patient={user as Patient} />
+      )}
+    </div>
   )
 }

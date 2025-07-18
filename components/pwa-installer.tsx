@@ -2,67 +2,39 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { useToast } from "@/hooks/use-toast"
-
-interface BeforeInstallPromptEvent extends Event {
-  readonly platforms: Array<string>
-  readonly userChoice: Promise<{
-    outcome: "accepted" | "dismissed"
-    platform: string
-  }>
-  prompt(): Promise<void>
-}
+import { Download } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
 
 export function PWAInstaller() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isAppInstalled, setIsAppInstalled] = useState(false)
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault()
-      setDeferredPrompt(e as BeforeInstallPromptEvent)
-      setShowInstallPrompt(true)
+      setDeferredPrompt(e)
       toast({
         title: "Install App",
-        description: "Add Virtual Clinic to your home screen for quick access!",
-        action: (
-          <Button
-            onClick={() => {
-              setShowInstallPrompt(true)
-            }}
-            className="whitespace-nowrap"
-          >
-            Install
-          </Button>
-        ),
-        duration: 10000,
+        description: "Click the button below to install this app to your device!",
+        duration: 5000,
       })
     }
 
     const handleAppInstalled = () => {
       setIsAppInstalled(true)
       setDeferredPrompt(null)
-      setShowInstallPrompt(false)
       toast({
-        title: "Installation Successful!",
-        description: "Virtual Clinic has been added to your home screen.",
+        title: "App Installed!",
+        description: "The Virtual Clinic app has been successfully installed.",
+        duration: 5000,
       })
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
     window.addEventListener("appinstalled", handleAppInstalled)
 
-    // Check if the app is already installed (e.g., running in standalone mode)
+    // Check if the app is already installed (for standalone mode)
     if (window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone) {
       setIsAppInstalled(true)
     }
@@ -83,30 +55,18 @@ export function PWAInstaller() {
         console.log("User dismissed the install prompt.")
       }
       setDeferredPrompt(null)
-      setShowInstallPrompt(false)
     }
   }
 
-  if (!deferredPrompt || isAppInstalled || !showInstallPrompt) {
-    return null
+  if (isAppInstalled || !deferredPrompt) {
+    return null // Don't show button if app is installed or prompt not available
   }
 
   return (
-    <Dialog open={showInstallPrompt} onOpenChange={setShowInstallPrompt}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Install Virtual Clinic</DialogTitle>
-          <DialogDescription>
-            Add this application to your home screen for a faster and more integrated experience.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setShowInstallPrompt(false)}>
-            Not now
-          </Button>
-          <Button onClick={handleInstallClick}>Install App</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div className="fixed bottom-4 right-4 z-50">
+      <Button onClick={handleInstallClick} className="shadow-lg">
+        <Download className="mr-2 h-4 w-4" /> Install App
+      </Button>
+    </div>
   )
 }

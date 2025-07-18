@@ -1,15 +1,11 @@
 "use client"
 
 import type React from "react"
+
 import { useEffect } from "react"
-import { useToast } from "@/hooks/use-toast"
-import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
 
-interface ServiceWorkerProviderProps {
-  children: React.ReactNode
-}
-
-export function ServiceWorkerProvider({ children }: ServiceWorkerProviderProps) {
+export function ServiceWorkerProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
 
   useEffect(() => {
@@ -18,40 +14,20 @@ export function ServiceWorkerProvider({ children }: ServiceWorkerProviderProps) 
         .register("/sw.js")
         .then((registration) => {
           console.log("Service Worker registered with scope:", registration.scope)
-
-          registration.onupdatefound = () => {
-            const installingWorker = registration.installing
-            if (installingWorker) {
-              installingWorker.onstatechange = () => {
-                if (installingWorker.state === "installed") {
-                  if (navigator.serviceWorker.controller) {
-                    // New content available
-                    toast({
-                      title: "Update Available",
-                      description: "New content is available! Click to update.",
-                      action: (
-                        <Button
-                          onClick={() => {
-                            window.location.reload()
-                          }}
-                          className="whitespace-nowrap"
-                        >
-                          Refresh
-                        </Button>
-                      ),
-                      duration: 10000,
-                    })
-                  } else {
-                    // Content is cached for offline use
-                    console.log("Content is now available offline!")
-                  }
-                }
-              }
-            }
-          }
+          toast({
+            title: "Offline Ready",
+            description: "App is ready for offline use!",
+            duration: 3000,
+          })
         })
         .catch((error) => {
           console.error("Service Worker registration failed:", error)
+          toast({
+            title: "Offline Error",
+            description: "Failed to register Service Worker. Offline features may be limited.",
+            variant: "destructive",
+            duration: 5000,
+          })
         })
     }
   }, [toast])

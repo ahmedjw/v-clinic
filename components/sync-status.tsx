@@ -1,32 +1,25 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Cloud, CloudOff, RefreshCw } from "lucide-react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useToast } from "@/hooks/use-toast"
-import { syncData } from "@/lib/sync"
+import { RefreshCw, CloudOff, Cloud } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { AuthClientService } from "@/lib/auth-client"
 
 export function SyncStatus() {
   const [isOnline, setIsOnline] = useState(true)
-  const [lastSync, setLastSync] = useState<string | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
-    setIsOnline(navigator.onLine)
-
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
 
     window.addEventListener("online", handleOnline)
     window.addEventListener("offline", handleOffline)
 
-    // Initial sync status check
-    const storedLastSync = localStorage.getItem("lastSync")
-    if (storedLastSync) {
-      setLastSync(new Date(storedLastSync).toLocaleString())
-    }
+    // Initial check
+    setIsOnline(navigator.onLine)
 
     return () => {
       window.removeEventListener("online", handleOnline)
@@ -37,20 +30,16 @@ export function SyncStatus() {
   const handleManualSync = async () => {
     setIsSyncing(true)
     try {
-      // Simulate a network request for sync
-      await syncData() // This is a mock sync function
-      const now = new Date()
-      setLastSync(now.toLocaleString())
-      localStorage.setItem("lastSync", now.toISOString())
+      await AuthClientService.syncData()
       toast({
-        title: "Sync Successful",
-        description: "Your data has been synchronized with the cloud (mock).",
+        title: "Sync Complete",
+        description: "Your data has been synchronized.",
       })
     } catch (error) {
-      console.error("Sync failed:", error)
+      console.error("Manual sync failed:", error)
       toast({
         title: "Sync Failed",
-        description: "Could not synchronize data. Please check your connection.",
+        description: "Could not synchronize data. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -59,34 +48,27 @@ export function SyncStatus() {
   }
 
   return (
-    <TooltipProvider>
-      <div className="flex items-center gap-2">
-        {isOnline ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Cloud className="h-5 w-5 text-green-500" />
-            </TooltipTrigger>
-            <TooltipContent>Online</TooltipContent>
-          </Tooltip>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CloudOff className="h-5 w-5 text-red-500" />
-            </TooltipTrigger>
-            <TooltipContent>Offline</TooltipContent>
-          </Tooltip>
-        )}
-        {lastSync && <span className="text-sm text-gray-600 hidden sm:inline">Last Sync: {lastSync}</span>}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" onClick={handleManualSync} disabled={isSyncing || !isOnline}>
-              <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-              <span className="sr-only">Sync Now</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{isSyncing ? "Syncing..." : isOnline ? "Sync Now" : "Offline - Cannot Sync"}</TooltipContent>
-        </Tooltip>
-      </div>
-    </TooltipProvider>
+    <div className="flex items-center space-x-2">
+      {!isOnline && (
+        <div className="flex items-center text-red-500">
+          <CloudOff className="h-4 w-4 mr-1" /> Offline
+        </div>
+      )}
+      {isOnline && (
+        <div className="flex items-center text-green-500">
+          <Cloud className="h-4 w-4 mr-1" /> Online
+        </div>
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleManualSync}
+        disabled={isSyncing || !isOnline}
+        className="flex items-center bg-transparent"
+      >
+        <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+        {isSyncing ? "Syncing..." : "Sync Data"}
+      </Button>
+    </div>
   )
 }
