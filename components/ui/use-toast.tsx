@@ -30,21 +30,21 @@ function genId() {
 
 type Action =
   | {
-      type: typeof actionTypes.ADD_TOAST
-      toast: ToasterToast
-    }
+    type: typeof actionTypes.ADD_TOAST
+    toast: ToasterToast
+  }
   | {
-      type: typeof actionTypes.UPDATE_TOAST
-      toast: Partial<ToasterToast>
-    }
+    type: typeof actionTypes.UPDATE_TOAST
+    toast: Partial<ToasterToast>
+  }
   | {
-      type: typeof actionTypes.DISMISS_TOAST
-      toastId?: ToasterToast["id"]
-    }
+    type: typeof actionTypes.DISMISS_TOAST
+    toastId?: ToasterToast["id"]
+  }
   | {
-      type: typeof actionTypes.REMOVE_TOAST
-      toastId?: ToasterToast["id"]
-    }
+    type: typeof actionTypes.REMOVE_TOAST
+    toastId?: ToasterToast["id"]
+  }
 
 interface State {
   toasts: ToasterToast[]
@@ -109,9 +109,9 @@ const addToRemoveQueue = (toastId: string, dispatch: React.Dispatch<Action>) => 
 
 const reducerContext = React.createContext<
   | {
-      state: State
-      dispatch: React.Dispatch<Action>
-    }
+    state: State
+    dispatch: React.Dispatch<Action>
+  }
   | undefined
 >(undefined)
 
