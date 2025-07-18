@@ -126,8 +126,8 @@ export function PatientProfileModal({ isOpen, onClose, patient }: PatientProfile
               <div>
                 <strong>Allergies:</strong>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {patient.allergies.length > 0 ? (
-                    patient.allergies.map((allergy: string, idx: number) => (
+                  {patient?.allergies?.length > 0 ? (
+                    patient?.allergies?.map((allergy: string, idx: number) => (
                       <Badge key={idx} variant="destructive">
                         {allergy}
                       </Badge>
