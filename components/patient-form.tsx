@@ -35,7 +35,7 @@ export function PatientForm({ onRegister, onCancel }: PatientFormProps) {
     setLoading(true)
 
     try {
-      const newPatient: Omit<Patient, "id" | "createdAt" | "updatedAt" | "synced"> & { password: string } = {
+      const newPatient: any = {
         name,
         email,
         password,

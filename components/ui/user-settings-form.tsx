@@ -34,7 +34,7 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
-  const handleChange = (field: keyof (Patient | Doctor), value: string | string[] | number | undefined) => {
+  const handleChange = (field: any, value: string | string[] | number | undefined) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 

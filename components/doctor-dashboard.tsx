@@ -96,7 +96,7 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
 
   const handleUpdateAppointmentStatus = async (appointmentId: string, status: Appointment["status"]) => {
     try {
-      const updatedAppointment = await AuthClientService.updateAppointmentStatus(appointmentId, status)
+      const updatedAppointment = await AuthClientService.updateAppointmentStatus(appointmentId, status as any)
       setAppointments((prev) => prev.map((app) => (app.id === updatedAppointment.id ? updatedAppointment : app)))
       toast({
         title: "Appointment Updated",
@@ -117,7 +117,7 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
     router.push("/login")
   }
 
-  const handleUserSettingsSave = (updatedUser: Doctor) => {
+  const handleUserSettingsSave = (updatedUser: Doctor | Patient) => {
     // Update the local doctor state if needed, or rely on re-fetch if complex
     // For simplicity, we'll just close the modal and assume the data is updated in AuthClientService
     setIsUserSettingsOpen(false)
@@ -187,7 +187,7 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
                     {appointments.map((app) => (
                       <TableRow key={app.id}>
                         <TableCell className="font-medium">{app.patientName}</TableCell>
-                        <TableCell>{app.date}</TableCell>
+                        <TableCell>{app.date as any}</TableCell>
                         <TableCell>{app.time}</TableCell>
                         <TableCell>{app.reason}</TableCell>
                         <TableCell>

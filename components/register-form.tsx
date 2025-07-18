@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { PatientForm } from "./patient-form"
-import { DoctorForm } from "./doctor-form"
 import type { Doctor, Patient } from "@/lib/db"
 import { useToast } from "@/components/ui/use-toast"
+import { DoctorForm } from "./doctor-form"
 
 interface RegisterFormProps {
   onRegister: (user: Patient | Doctor) => void

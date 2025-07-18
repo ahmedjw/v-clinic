@@ -69,6 +69,7 @@ export function MedicalRecordForm({ doctorId, onSave, onCancel, patients }: Medi
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         synced: false,
+        date: new Date().toISOString(),
       }
 
       const createdRecord = await AuthClientService.addMedicalRecord(newRecord)

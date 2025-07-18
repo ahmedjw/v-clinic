@@ -9,11 +9,12 @@ import type { Doctor } from "@/lib/db"
 interface DoctorProfileModalProps {
   doctor: Doctor
   onClose: () => void
+  isOpen?: boolean
 }
 
-export function DoctorProfileModal({ doctor, onClose }: DoctorProfileModalProps) {
+export function DoctorProfileModal({ doctor, onClose, isOpen }: DoctorProfileModalProps) {
   return (
-    <Dialog open={true} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader className="flex flex-col items-center text-center">
           <Avatar className="h-24 w-24 mb-4">

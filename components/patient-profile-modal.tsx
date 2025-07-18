@@ -36,12 +36,12 @@ export function PatientProfileModal({ isOpen, onClose, patient }: PatientProfile
         const patientAppointments = await localDB.getAppointments(patient.id)
         const patientRecords = await localDB.getMedicalRecords(patient.id)
         setAppointments(patientAppointments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
-        setMedicalRecords(patientRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
+        setMedicalRecords(patientRecords.sort((a, b) => new Date(b?.date).getTime() - new Date(a?.date).getTime()))
 
         let allUsers: User[] = []
-        allUsers = authService.getMockDoctors() // Call on the instance
+        allUsers = await AuthClientService.getMockDoctors()
         const allDoctors = allUsers.filter((user: User) => user.role === "doctor")
-        const assigned = allDoctors.filter((doc: User) => patient.assignedDoctorIds.includes(doc.id))
+        const assigned = allDoctors.filter((doc: User) => patient.assignedDoctorIds?.includes(doc.id))
         setAssignedDoctors(assigned)
       } catch (error) {
         console.error("Failed to load patient specific data:", error)
@@ -127,7 +127,7 @@ export function PatientProfileModal({ isOpen, onClose, patient }: PatientProfile
                 <strong>Allergies:</strong>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {patient.allergies.length > 0 ? (
-                    patient.allergies.map((allergy, idx) => (
+                    patient.allergies.map((allergy: string, idx: number) => (
                       <Badge key={idx} variant="destructive">
                         {allergy}
                       </Badge>
@@ -140,8 +140,8 @@ export function PatientProfileModal({ isOpen, onClose, patient }: PatientProfile
               <div>
                 <strong>Current Medications:</strong>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {patient.currentMedications.length > 0 ? (
-                    patient.currentMedications.map((med, idx) => (
+                  {patient?.currentMedications && patient?.currentMedications?.length > 0 ? (
+                    patient?.currentMedications?.map((med: string, idx: number) => (
                       <Badge key={idx} variant="secondary">
                         {med}
                       </Badge>

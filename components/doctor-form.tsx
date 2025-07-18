@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import type { Doctor } from "@/lib/db" // Assuming Doctor interface is defined in lib/db
+import type { Doctor, Patient } from "@/lib/db" // Assuming Doctor interface is defined in lib/db
 
 interface DoctorFormProps {
     initialData?: Doctor
-    onSubmit: (doctorData: Omit<Doctor, "id" | "createdAt" | "updatedAt" | "synced" | "role">) => void
+    onSubmit?: (doctorData: any) => void
     onCancel?: () => void
     isSubmitting?: boolean
+    onRegister?: (doctor: Doctor | Patient) => void
 }
 
 export function DoctorForm({ initialData, onSubmit, onCancel, isSubmitting }: DoctorFormProps) {
@@ -54,7 +55,7 @@ export function DoctorForm({ initialData, onSubmit, onCancel, isSubmitting }: Do
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if (validate()) {
-            onSubmit({
+            onSubmit?.({
                 name,
                 email,
                 specialty,

@@ -93,15 +93,19 @@ export function PatientDashboard({ patient }: PatientDashboardProps) {
     router.push("/login")
   }
 
-  const handleUserSettingsSave = (updatedUser: Patient) => {
-    // Update the local patient state if needed, or rely on re-fetch if complex
-    // For simplicity, we'll just close the modal and assume the data is updated in AuthClientService
-    setIsUserSettingsOpen(false)
-    toast({
-      title: "Profile Updated",
-      description: "Your patient profile has been successfully updated.",
-    })
+  const handleUserSettingsSave = (updatedUser: Patient | Doctor) => {
+    if (updatedUser.role === "patient") {
+      setIsUserSettingsOpen(false)
+      toast({
+        title: "Profile Updated",
+        description: "Your patient profile has been successfully updated.",
+      })
+    } else {
+      // Optional: Handle or ignore doctor case
+      console.warn("Received doctor data, but this handler is for patients only.")
+    }
   }
+
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -147,7 +151,7 @@ export function PatientDashboard({ patient }: PatientDashboardProps) {
                     <Card key={app.id} className="p-4">
                       <p className="font-semibold">Doctor: {app.doctorName}</p>
                       <p>
-                        Date: {app.date} at {app.time}
+                        Date: {app.date as any} at {app.time}
                       </p>
                       <p>Reason: {app.reason}</p>
                       <p>
