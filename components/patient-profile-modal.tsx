@@ -1,4 +1,5 @@
 "use client"
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -29,8 +30,14 @@ export function PatientProfileModal({ patient, onClose }: PatientProfileModalPro
         setAppointments(patientAppointments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
         setMedicalRecords(patientRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
 
-        const allDoctors = AuthClientService.getMockDoctors()
-        const assigned = allDoctors.filter((doc) => patient.assignedDoctorIds.includes(doc.id))
+        // Instantiate AuthClientService
+        const authService = new AuthClientService()
+        let allUsers: User[] = []
+        // Correctly call the instance method
+        allUsers = await authService.getMockDoctors()
+
+        const allDoctors = allUsers.filter((user: User) => user.role === "doctor")
+        const assigned = allDoctors.filter((doc: User) => patient.assignedDoctorIds.includes(doc.id))
         setAssignedDoctors(assigned)
       } catch (error) {
         console.error("Failed to load patient specific data:", error)
@@ -60,7 +67,6 @@ export function PatientProfileModal({ patient, onClose }: PatientProfileModalPro
             Comprehensive view of patient information, appointments, and medical history.
           </DialogDescription>
         </DialogHeader>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
           {/* Patient Details Card */}
           <Card className="lg:col-span-1">
@@ -149,7 +155,6 @@ export function PatientProfileModal({ patient, onClose }: PatientProfileModalPro
               </div>
             </CardContent>
           </Card>
-
           {/* Appointments & Medical Records */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
@@ -182,7 +187,6 @@ export function PatientProfileModal({ patient, onClose }: PatientProfileModalPro
                 )}
               </CardContent>
             </Card>
-
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
