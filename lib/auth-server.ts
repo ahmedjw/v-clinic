@@ -1,55 +1,66 @@
-import bcrypt from "bcryptjs"
-import jwt from "jsonwebtoken"
-import { pool } from "./database"
-import type { User } from "./database"
+/* eslint-disable */
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { type User } from "./db";
+import { Pool } from "pg";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
-const SALT_ROUNDS = 12
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const SALT_ROUNDS = 12;
 
 export class AuthService {
   static async hashPassword(password: string): Promise<string> {
-    return bcrypt.hash(password, SALT_ROUNDS)
+    return bcrypt.hash(password, SALT_ROUNDS);
   }
 
-  static async verifyPassword(password: string, hash: string): Promise<boolean> {
-    return bcrypt.compare(password, hash)
+  static async verifyPassword(
+    password: string,
+    hash: string
+  ): Promise<boolean> {
+    return bcrypt.compare(password, hash);
   }
 
   static generateToken(userId: string): string {
-    return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" })
+    return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" });
   }
 
   static verifyToken(token: string): { userId: string } | null {
     try {
-      return jwt.verify(token, JWT_SECRET) as { userId: string }
+      return jwt.verify(token, JWT_SECRET) as { userId: string };
     } catch {
-      return null
+      return null;
     }
   }
 
   static async createUser(userData: {
-    email: string
-    password: string
-    name: string
-    role: "doctor" | "patient"
-    phone?: string
-    specialization?: string
-    license_number?: string
+    email: string;
+    password: string;
+    name: string;
+    role: "doctor" | "patient";
+    phone?: string;
+    specialization?: string;
+    license_number?: string;
   }): Promise<User> {
-    const client = await pool.connect()
+    const client = await pool.connect();
 
     try {
-      await client.query("BEGIN")
+      await client.query("BEGIN");
 
       // Check if user already exists
-      const existingUser = await client.query("SELECT id FROM users WHERE email = $1", [userData.email])
+      const existingUser = await client.query(
+        "SELECT id FROM users WHERE email = $1",
+        [userData.email]
+      );
 
       if (existingUser.rows.length > 0) {
-        throw new Error("User already exists")
+        throw new Error("User already exists");
       }
 
       // Hash password
-      const passwordHash = await this.hashPassword(userData.password)
+      const passwordHash = await this.hashPassword(userData.password);
 
       // Create user
       const userResult = await client.query(
@@ -64,10 +75,10 @@ export class AuthService {
           userData.phone || null,
           userData.specialization || null,
           userData.license_number || null,
-        ],
-      )
+        ]
+      );
 
-      const user = userResult.rows[0]
+      const user = userResult.rows[0];
 
       // If patient, create patient record
       if (userData.role === "patient") {
@@ -91,64 +102,74 @@ export class AuthService {
             "",
             [],
             [],
-          ],
-        )
+          ]
+        );
 
         // Update user with patient_id
-        await client.query("UPDATE users SET patient_id = $1 WHERE id = $2", [patientResult.rows[0].id, user.id])
+        await client.query("UPDATE users SET patient_id = $1 WHERE id = $2", [
+          patientResult.rows[0].id,
+          user.id,
+        ]);
 
-        user.patient_id = patientResult.rows[0].id
+        user.patient_id = patientResult.rows[0].id;
       }
 
-      await client.query("COMMIT")
-      return user
+      await client.query("COMMIT");
+      return user;
     } catch (error) {
-      await client.query("ROLLBACK")
-      throw error
+      await client.query("ROLLBACK");
+      throw error;
     } finally {
-      client.release()
+      client.release();
     }
   }
 
-  static async authenticateUser(email: string, password: string): Promise<User | null> {
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email])
+  static async authenticateUser(
+    email: string,
+    password: string
+  ): Promise<User | null> {
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
 
     if (result.rows.length === 0) {
-      return null
+      return null;
     }
 
-    const user = result.rows[0]
-    const isValidPassword = await this.verifyPassword(password, user.password_hash)
+    const user = result.rows[0];
+    const isValidPassword = await this.verifyPassword(
+      password,
+      user.password_hash
+    );
 
     if (!isValidPassword) {
-      return null
+      return null;
     }
 
     // Remove password hash from returned user
-    const { password_hash, ...userWithoutPassword } = user
-    return userWithoutPassword as User
+    const { password_hash, ...userWithoutPassword } = user;
+    return userWithoutPassword as User;
   }
 
   static async getUserById(id: string): Promise<User | null> {
     const result = await pool.query(
       "SELECT id, email, name, role, phone, specialization, license_number, patient_id, created_at, updated_at FROM users WHERE id = $1",
-      [id],
-    )
+      [id]
+    );
 
-    return result.rows.length > 0 ? result.rows[0] : null
+    return result.rows.length > 0 ? result.rows[0] : null;
   }
 
   static async createSession(userId: string): Promise<string> {
-    const sessionToken = this.generateToken(userId)
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+    const sessionToken = this.generateToken(userId);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    await pool.query("INSERT INTO sessions (user_id, session_token, expires_at) VALUES ($1, $2, $3)", [
-      userId,
-      sessionToken,
-      expiresAt,
-    ])
+    await pool.query(
+      "INSERT INTO sessions (user_id, session_token, expires_at) VALUES ($1, $2, $3)",
+      [userId, sessionToken, expiresAt]
+    );
 
-    return sessionToken
+    return sessionToken;
   }
 
   static async validateSession(sessionToken: string): Promise<User | null> {
@@ -157,13 +178,15 @@ export class AuthService {
        FROM sessions s
        JOIN users u ON s.user_id = u.id
        WHERE s.session_token = $1 AND s.expires_at > NOW()`,
-      [sessionToken],
-    )
+      [sessionToken]
+    );
 
-    return result.rows.length > 0 ? result.rows[0] : null
+    return result.rows.length > 0 ? result.rows[0] : null;
   }
 
   static async deleteSession(sessionToken: string): Promise<void> {
-    await pool.query("DELETE FROM sessions WHERE session_token = $1", [sessionToken])
+    await pool.query("DELETE FROM sessions WHERE session_token = $1", [
+      sessionToken,
+    ]);
   }
 }

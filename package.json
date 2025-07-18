@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "ts-check": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -37,6 +38,7 @@
     "@radix-ui/react-toggle": "1.1.1",
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
+    "@types/pg": "^8.15.4",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "latest",
     "class-variance-authority": "^0.7.1",
@@ -49,6 +51,7 @@
     "lucide-react": "^0.454.0",
     "next": "14.2.16",
     "next-themes": "^0.4.4",
+    "pg": "^8.16.3",
     "react": "^18",
     "react-day-picker": "8.10.1",
     "react-dom": "^18",
@@ -62,6 +65,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",

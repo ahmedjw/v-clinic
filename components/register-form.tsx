@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -33,6 +32,9 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  // Create an instance of AuthClientService
+  const authService = new AuthClientService()
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -51,7 +53,8 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
     }
 
     try {
-      const user = await AuthClientService.register({
+      // Call the register method on the instance
+      const user = await authService.register({
         ...formData,
         role: userType,
       })
@@ -73,7 +76,6 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
         <CardHeader className="text-center space-y-4">
           <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
           <CardDescription>Join Virtual Clinic today</CardDescription>
-
           <Tabs
             value={userType}
             onValueChange={(value) => setUserType(value as "doctor" | "patient")}
@@ -91,7 +93,6 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
             </TabsList>
           </Tabs>
         </CardHeader>
-
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Common Fields */}
@@ -105,7 +106,6 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
                   required
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -116,7 +116,6 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
                   required
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
                 <Input
@@ -126,7 +125,6 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
                   onChange={(e) => handleChange("phone", e.target.value)}
                 />
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
@@ -138,7 +136,6 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
                     required
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
@@ -151,7 +148,6 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
                 </div>
               </div>
             </div>
-
             {/* Doctor Specific Fields */}
             {userType === "doctor" && (
               <div className="space-y-4 border-t pt-4">
@@ -174,7 +170,6 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="licenseNumber">Medical License Number</Label>
                   <Input
@@ -186,18 +181,15 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
                 </div>
               </div>
             )}
-
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Creating Account..." : "Create Account"}
             </Button>
           </form>
-
           <div className="mt-4 text-center">
             <button type="button" onClick={onSwitchToLogin} className="text-sm text-blue-600 hover:text-blue-800">
               Already have an account? Sign in
