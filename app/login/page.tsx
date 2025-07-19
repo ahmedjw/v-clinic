@@ -54,7 +54,6 @@ export default function LoginPage() {
   return (
     <div className="relative min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
       <PWAInstaller />
-      <SyncStatus />
       <LoginForm onLogin={handleLoginSuccess} onSwitchToRegister={handleSwitchToRegister} />
     </div>
   )

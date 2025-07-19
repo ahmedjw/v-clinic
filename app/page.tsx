@@ -46,7 +46,6 @@ export default function HomePage() {
   return (
     <div className="relative min-h-screen bg-gray-100 dark:bg-gray-900">
       <PWAInstaller />
-      <SyncStatus />
       {user.role === "doctor" ? (
         <DoctorDashboard doctor={user as Doctor} />
       ) : (
