@@ -14,22 +14,22 @@ export function DoctorCard({ doctor, onShare }: DoctorCardProps) {
   return (
     <Card className="flex flex-col">
       <CardHeader>
-        <CardTitle className="text-xl">{doctor.name}</CardTitle>
-        <CardDescription>{doctor.specialty}</CardDescription>
+        <CardTitle className="text-xl">{doctor?.name}</CardTitle>
+        <CardDescription>{doctor?.specialty}</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow space-y-2">
-        <p className="text-sm text-gray-600">{doctor.bio}</p>
+        <p className="text-sm text-gray-600">{doctor?.bio}</p>
         <div className="flex items-center text-sm text-gray-500">
-          <Mail className="mr-2 h-4 w-4" /> {doctor.email}
+          <Mail className="mr-2 h-4 w-4" /> {doctor?.email}
         </div>
-        {doctor.phone && (
+        {doctor?.phone && (
           <div className="flex items-center text-sm text-gray-500">
-            <Phone className="mr-2 h-4 w-4" /> {doctor.phone}
+            <Phone className="mr-2 h-4 w-4" /> {doctor?.phone}
           </div>
         )}
-        {doctor.address && (
+        {doctor?.address && (
           <div className="flex items-center text-sm text-gray-500">
-            <Stethoscope className="mr-2 h-4 w-4" /> {doctor.address}
+            <Stethoscope className="mr-2 h-4 w-4" /> {doctor?.address}
           </div>
         )}
       </CardContent>

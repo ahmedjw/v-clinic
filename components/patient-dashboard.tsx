@@ -104,7 +104,7 @@ export function PatientDashboard({ patient }: PatientDashboardProps) {
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <header className="flex items-center justify-between bg-white p-4 shadow-sm rounded-lg mb-4">
-        <h1 className="text-2xl font-bold">Welcome, {patient.name}</h1>
+        <h1 className="text-2xl font-bold">Welcome, {patient?.name}</h1>
         <div className="flex items-center space-x-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -143,15 +143,15 @@ export function PatientDashboard({ patient }: PatientDashboardProps) {
                 <div className="space-y-4 mb-4">
                   {appointments.map((app) => (
                     <Card key={app.id} className="p-4">
-                      <p className="font-semibold">Doctor: {app.doctorName}</p>
+                      <p className="font-semibold">Doctor: {app?.doctorName}</p>
                       <p>
-                        Date: {app.date as any} at {app.time}
+                        Date: {app?.date as any} at {app?.time}
                       </p>
-                      <p>Reason: {app.reason}</p>
+                      <p>Reason: {app?.reason}</p>
                       <p>
                         Status:{" "}
                         <span
-                          className={`font-medium ${app.status === "pending" ? "text-yellow-600" : app.status === "confirmed" ? "text-green-600" : "text-red-600"}`}
+                          className={`font-medium ${app?.status === "pending" ? "text-yellow-600" : app?.status === "confirmed" ? "text-green-600" : "text-red-600"}`}
                         >
                           {app.status}
                         </span>
@@ -171,11 +171,11 @@ export function PatientDashboard({ patient }: PatientDashboardProps) {
               <CardTitle>Your Medical Records</CardTitle>
             </CardHeader>
             <CardContent>
-              {medicalRecords.length === 0 ? (
+              {medicalRecords?.length === 0 ? (
                 <p>No medical records found.</p>
               ) : (
                 <div className="space-y-4">
-                  {medicalRecords.map((record) => (
+                  {medicalRecords?.map((record) => (
                     <Card key={record.id} className="p-4">
                       <p className="font-semibold">Doctor: {record.doctorName || "N/A"}</p>
                       <p>Date: {new Date(record.createdAt).toLocaleDateString()}</p>
@@ -200,7 +200,7 @@ export function PatientDashboard({ patient }: PatientDashboardProps) {
                 <p>No doctors found.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {doctors.map((doc) => (
+                  {doctors?.map((doc) => (
                     <DoctorCard key={doc.id} doctor={doc} onShare={handleShareDoctorProfile} />
                   ))}
                 </div>

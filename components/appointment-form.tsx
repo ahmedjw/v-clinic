@@ -102,7 +102,7 @@ export function AppointmentForm({ patientId, onAppointmentCreated }: Appointment
             <SelectContent>
               {doctors.map((doc) => (
                 <SelectItem key={doc.id} value={doc.id}>
-                  {doc.name} ({doc.specialty})
+                  {doc?.name} ({doc?.specialty})
                 </SelectItem>
               ))}
             </SelectContent>

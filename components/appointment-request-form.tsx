@@ -104,7 +104,7 @@ export function AppointmentRequestForm({
             <SelectContent>
               {patients.map((pat) => (
                 <SelectItem key={pat.id} value={pat.id}>
-                  {pat.name} ({pat.email})
+                  {pat?.name} ({pat?.email})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -121,7 +121,7 @@ export function AppointmentRequestForm({
           <SelectContent>
             {doctors.map((doc) => (
               <SelectItem key={doc.id} value={doc.id}>
-                {doc.name} ({doc.specialty})
+                {doc?.name} ({doc?.specialty})
               </SelectItem>
             ))}
           </SelectContent>

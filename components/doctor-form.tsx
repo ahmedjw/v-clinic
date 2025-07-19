@@ -29,12 +29,12 @@ export function DoctorForm({ initialData, onSubmit, onCancel, isSubmitting }: Do
 
     useEffect(() => {
         if (initialData) {
-            setName(initialData.name)
-            setEmail(initialData.email)
-            setSpecialty(initialData.specialty)
-            setBio(initialData.bio)
-            setPhone(initialData.phone || "")
-            setAddress(initialData.address || "")
+            setName(initialData?.name)
+            setEmail(initialData?.email)
+            setSpecialty(initialData?.specialty)
+            setBio(initialData?.bio)
+            setPhone(initialData?.phone || "")
+            setAddress(initialData?.address || "")
         }
     }, [initialData])
 

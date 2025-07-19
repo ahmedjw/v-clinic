@@ -80,7 +80,7 @@ export function MockChat({ currentUserRole }: MockChatProps) {
         const botResponse: Message = {
           id: Date.now().toString() + "-bot",
           sender: "other",
-          text: `(Auto-reply): Thank you for your message, ${currentUser.name}. I'll get back to you shortly.`,
+          text: `(Auto-reply): Thank you for your message, ${currentUser?.name}. I'll get back to you shortly.`,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         }
         setMessages((prevMessages) => [...prevMessages, botResponse])
@@ -100,9 +100,9 @@ export function MockChat({ currentUserRole }: MockChatProps) {
         <Avatar className="h-8 w-8">
           <AvatarImage
             src={currentUser.avatar || `/placeholder.svg?height=32&width=32&text=${currentUser.name.charAt(0)}`}
-            alt={currentUser.name}
+            alt={currentUser?.name}
           />
-          <AvatarFallback>{currentUser.name.charAt(0).toUpperCase()}</AvatarFallback>
+          <AvatarFallback>{currentUser?.name.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
       )
     } else {

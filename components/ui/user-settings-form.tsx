@@ -101,7 +101,7 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
-                  value={formData.name}
+                  value={formData?.name}
                   onChange={(e) => handleChange("name", e.target.value)}
                   required
                 />
@@ -111,7 +111,7 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
                 <Input
                   id="email"
                   type="email"
-                  value={formData.email}
+                  value={formData?.email}
                   onChange={(e) => handleChange("email", e.target.value)}
                   required
                 />
@@ -121,7 +121,7 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
                 <Input
                   id="phone"
                   type="tel"
-                  value={formData.phone || ""}
+                  value={formData?.phone || ""}
                   onChange={(e) => handleChange("phone", e.target.value)}
                 />
               </div>
@@ -129,7 +129,7 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
                 <Label htmlFor="address">Address</Label>
                 <Input
                   id="address"
-                  value={formData.address || ""}
+                  value={formData?.address || ""}
                   onChange={(e) => handleChange("address", e.target.value)}
                 />
               </div>
@@ -145,7 +145,7 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
                 <div className="space-y-2">
                   <Label htmlFor="specialty">Specialization</Label>
                   <Select
-                    value={(formData as Doctor).specialty || ""}
+                    value={(formData as Doctor)?.specialty || ""}
                     onValueChange={(value) => handleChange("specialty", value)}
                   >
                     <SelectTrigger>
@@ -165,7 +165,7 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
                   <Label htmlFor="bio">Bio</Label>
                   <Textarea
                     id="bio"
-                    value={(formData as Doctor).bio || ""}
+                    value={(formData as Doctor)?.bio || ""}
                     onChange={(e) => handleChange("bio", e.target.value)}
                     placeholder="Brief description of your professional background and approach."
                   />
@@ -183,14 +183,14 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
                   <Input
                     id="dob"
                     type="date"
-                    value={(formData as Patient).dob || ""}
+                    value={(formData as Patient)?.dob || ""}
                     onChange={(e) => handleChange("dob", e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="gender">Gender</Label>
                   <Select
-                    value={(formData as Patient).gender || ""}
+                    value={(formData as Patient)?.gender || ""}
                     onValueChange={(value) => handleChange("gender", value)}
                   >
                     <SelectTrigger>
@@ -207,7 +207,7 @@ export function UserSettingsForm({ user, onSave }: UserSettingsFormProps) {
                   <Label htmlFor="medicalHistory">Medical History</Label>
                   <Textarea
                     id="medicalHistory"
-                    value={(formData as Patient).medicalHistory || ""}
+                    value={(formData as Patient)?.medicalHistory || ""}
                     onChange={(e) => handleChange("medicalHistory", e.target.value)}
                     placeholder="Previous conditions, surgeries, allergies, etc."
                   />

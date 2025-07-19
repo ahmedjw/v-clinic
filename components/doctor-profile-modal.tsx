@@ -19,34 +19,34 @@ export function DoctorProfileModal({ doctor, onClose, isOpen }: DoctorProfileMod
         <DialogHeader className="flex flex-col items-center text-center">
           <Avatar className="h-24 w-24 mb-4">
             <AvatarImage
-              src={doctor.avatar || `/placeholder.svg?height=96&width=96&text=${doctor.name.charAt(0)}`}
-              alt={doctor.name}
+              src={doctor.avatar || `/placeholder.svg?height=96&width=96&text=${doctor?.name.charAt(0)}`}
+              alt={doctor?.name}
             />
-            <AvatarFallback className="text-4xl">{doctor.name.charAt(0)}</AvatarFallback>
+            <AvatarFallback className="text-4xl">{doctor?.name.charAt(0)}</AvatarFallback>
           </Avatar>
-          <DialogTitle className="text-2xl font-bold">{doctor.name}</DialogTitle>
-          <p className="text-md text-gray-600">{doctor.specialty}</p>
+          <DialogTitle className="text-2xl font-bold">{doctor?.name}</DialogTitle>
+          <p className="text-md text-gray-600">{doctor?.specialty}</p>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="flex items-center space-x-2">
             <Mail className="h-5 w-5 text-gray-500" />
-            <p className="text-gray-700">{doctor.email}</p>
+            <p className="text-gray-700">{doctor?.email}</p>
           </div>
-          {doctor.phone && (
+          {doctor?.phone && (
             <div className="flex items-center space-x-2">
               <Phone className="h-5 w-5 text-gray-500" />
-              <p className="text-gray-700">{doctor.phone}</p>
+              <p className="text-gray-700">{doctor?.phone}</p>
             </div>
           )}
-          {doctor.address && (
+          {doctor?.address && (
             <div className="flex items-center space-x-2">
               <MapPin className="h-5 w-5 text-gray-500" />
-              <p className="text-gray-700">{doctor.address}</p>
+              <p className="text-gray-700">{doctor?.address}</p>
             </div>
           )}
           <div className="space-y-2">
             <h4 className="font-semibold text-lg">About Me</h4>
-            <p className="text-gray-700">{doctor.bio}</p>
+            <p className="text-gray-700">{doctor?.bio}</p>
           </div>
         </div>
         <Button onClick={onClose} className="w-full">

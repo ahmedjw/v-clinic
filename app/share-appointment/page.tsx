@@ -86,37 +86,37 @@ export default function ShareAppointmentPage() {
             <div className="flex items-center space-x-3">
               <User2 className="h-5 w-5 text-gray-600" />
               <p className="text-lg">
-                <span className="font-semibold">Patient:</span> {appointment.patientName}
+                <span className="font-semibold">Patient:</span> {appointment?.patientName}
               </p>
             </div>
             {doctor && (
               <div className="flex items-center space-x-3">
                 <Stethoscope className="h-5 w-5 text-gray-600" />
                 <p className="text-lg">
-                  <span className="font-semibold">Doctor:</span> {doctor.name} ({doctor.specialty})
+                  <span className="font-semibold">Doctor:</span> {doctor?.name} ({doctor?.specialty})
                 </p>
               </div>
             )}
             <div className="flex items-center space-x-3">
               <Calendar className="h-5 w-5 text-gray-600" />
               <p className="text-lg">
-                <span className="font-semibold">Date:</span> {new Date(appointment.date).toLocaleDateString()}
+                <span className="font-semibold">Date:</span> {new Date(appointment?.date).toLocaleDateString()}
               </p>
             </div>
             <div className="flex items-center space-x-3">
               <Clock className="h-5 w-5 text-gray-600" />
               <p className="text-lg">
-                <span className="font-semibold">Time:</span> {appointment.time}
+                <span className="font-semibold">Time:</span> {appointment?.time}
               </p>
             </div>
             <div className="space-y-1">
               <p className="font-semibold text-lg">Reason:</p>
-              <p className="text-gray-700">{appointment.reason}</p>
+              <p className="text-gray-700">{appointment?.reason}</p>
             </div>
             <div className="space-y-1">
               <p className="font-semibold text-lg">Status:</p>
               <p
-                className={`font-bold ${appointment.status === "confirmed" ? "text-green-600" : appointment.status === "pending" ? "text-yellow-600" : "text-red-600"}`}
+                className={`font-bold ${appointment?.status === "confirmed" ? "text-green-600" : appointment?.status === "pending" ? "text-yellow-600" : "text-red-600"}`}
               >
                 {appointment.status.toUpperCase()}
               </p>
@@ -142,13 +142,13 @@ export default function ShareAppointmentPage() {
             <div className="flex items-center space-x-3">
               <User2 className="h-5 w-5 text-gray-600" />
               <p className="text-lg">
-                <span className="font-semibold">Name:</span> {doctor.name}
+                <span className="font-semibold">Name:</span> {doctor?.name}
               </p>
             </div>
             <div className="flex items-center space-x-3">
               <Stethoscope className="h-5 w-5 text-gray-600" />
               <p className="text-lg">
-                <span className="font-semibold">Specialty:</span> {doctor.specialty}
+                <span className="font-semibold">Specialty:</span> {doctor?.specialty}
               </p>
             </div>
             <div className="space-y-1">

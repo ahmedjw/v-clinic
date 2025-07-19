@@ -116,7 +116,7 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <header className="flex items-center justify-between bg-white p-4 shadow-sm rounded-lg mb-4">
-        <h1 className="text-2xl font-bold">Welcome, Dr. {doctor.name}</h1>
+        <h1 className="text-2xl font-bold">Welcome, Dr. {doctor?.name}</h1>
         <div className="flex items-center space-x-2">
           <Button variant="outline" onClick={() => setIsShareModalOpen(true)}>
             <Share2 className="mr-2 h-4 w-4" /> Share Profile
@@ -172,48 +172,48 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
                   <TableBody>
                     {appointments.map((app) => (
                       <TableRow key={app.id}>
-                        <TableCell className="font-medium">{app.patientName}</TableCell>
-                        <TableCell>{app.date as any}</TableCell>
-                        <TableCell>{app.time}</TableCell>
-                        <TableCell>{app.reason}</TableCell>
+                        <TableCell className="font-medium">{app?.patientName}</TableCell>
+                        <TableCell>{app?.date as any}</TableCell>
+                        <TableCell>{app?.time}</TableCell>
+                        <TableCell>{app?.reason}</TableCell>
                         <TableCell>
                           <Badge
                             variant={
-                              app.status === "pending"
+                              app?.status === "pending"
                                 ? "secondary"
                                 : app.status === "confirmed"
                                   ? "default"
                                   : "outline"
                             }
                           >
-                            {app.status}
+                            {app?.status}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {app.status === "pending" && (
+                          {app?.status === "pending" && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleUpdateAppointmentStatus(app.id, "confirmed")}
+                              onClick={() => handleUpdateAppointmentStatus(app?.id, "confirmed")}
                             >
                               Confirm
                             </Button>
                           )}
-                          {app.status === "confirmed" && (
+                          {app?.status === "confirmed" && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleUpdateAppointmentStatus(app.id, "completed")}
+                              onClick={() => handleUpdateAppointmentStatus(app?.id, "completed")}
                             >
                               Complete
                             </Button>
                           )}
-                          {(app.status === "pending" || app.status === "confirmed") && (
+                          {(app?.status === "pending" || app?.status === "confirmed") && (
                             <Button
                               variant="destructive"
                               size="sm"
                               className="ml-2"
-                              onClick={() => handleUpdateAppointmentStatus(app.id, "cancelled")}
+                              onClick={() => handleUpdateAppointmentStatus(app?.id, "cancelled")}
                             >
                               Cancel
                             </Button>
@@ -288,7 +288,7 @@ export function DoctorDashboard({ doctor }: DoctorDashboardProps) {
                   <TableBody>
                     {patients.map((pat) => (
                       <TableRow key={pat.id}>
-                        <TableCell className="font-medium">{pat.name}</TableCell>
+                        <TableCell className="font-medium">{pat?.name}</TableCell>
                         <TableCell>{pat.email}</TableCell>
                         <TableCell>{pat.phone}</TableCell>
                         <TableCell>{pat.address}</TableCell>

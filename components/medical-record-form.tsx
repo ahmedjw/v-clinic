@@ -81,7 +81,7 @@ export function MedicalRecordForm({ doctorId, onSave, onCancel, patients }: Medi
           <SelectContent>
             {patients.map((pat) => (
               <SelectItem key={pat.id} value={pat.id}>
-                {pat.name} ({pat.email})
+                {pat?.name} ({pat?.email})
               </SelectItem>
             ))}
           </SelectContent>
